@@ -1,0 +1,15 @@
+{
+  "name": "nova-launcher",
+  "private": true,
+  "version": "1.3.0",
+  "description": "Trident Client: herramientas del repositorio (mod Nova Client de Fabric, servidor de amigos). El launcher está en tauri/.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "npm --prefix tauri run dev",
+    "build": "npm --prefix tauri run build",
+    "build:mod": "node scripts/build-mod.js",
+    "publish:mods": "node scripts/publish-mods.js",
+    "server": "node server/server.js",
+    "test:server": "node server/test.js"
+  }
+}

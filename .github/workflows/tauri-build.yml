@@ -1,0 +1,155 @@
+name: Compilar Trident Client (Tauri)
+
+# Compila el launcher de la carpeta tauri/ y, al subir una etiqueta vX.Y.Z, lo publica.
+#   - A mano (Actions → «Compilar Trident Client (Tauri)» → Run workflow): comprueba, prueba y deja el instalador
+#     como artifact «Trident-Client-Setup-Tauri». No publica nada.
+#   - Con una etiqueta «v1.2.0»: además crea el release v1.2.0 con
+#       Trident-Client-Setup.exe       el instalador (también es el enlace permanente de descarga)
+#       Trident-Client-Setup.exe.sig   su firma (la comprueba el actualizador de Tauri)
+#       latest.json                 lo que lee el actualizador de Tauri
+#       latest.yml                  lo que lee la versión Electron: así se pasa sola a Tauri
+#
+# Secretos necesarios para publicar (Settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY            contenido del archivo nova-updater.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD   su contraseña
+# Con esos secretos se agregan los archivos del actualizador (src-tauri/tauri.release.conf.json). El instalador
+# no lleva firma de código: Windows lo muestra como «Editor desconocido».
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  tauri:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tauri/src-tauri
+
+      - name: Instalar CLI de Tauri
+        working-directory: tauri
+        run: npm install --no-audit --no-fund
+
+      # Al subir una etiqueta vX.Y.Z, la versión del launcher pasa a ser X.Y.Z.
+      - name: Poner la versión de la etiqueta
+        if: env.RELEASE == 'true'
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          node -e "
+            const fs = require('fs'), f = 'tauri/src-tauri/tauri.conf.json';
+            const c = JSON.parse(fs.readFileSync(f, 'utf8'));
+            c.version = process.argv[1];
+            fs.writeFileSync(f, JSON.stringify(c, null, 2) + '\n');
+          " "$v"
+          sed -i -E "0,/^version = \".*\"/s//version = \"$v\"/" tauri/src-tauri/Cargo.toml
+          grep -m1 '^version' tauri/src-tauri/Cargo.toml
+
+      - name: Comprobar que el Rust compila
+        working-directory: tauri/src-tauri
+        run: cargo check --release
+
+      - name: Pruebas (cuenta, DPAPI, lanzador, actualizaciones y una JVM real)
+        working-directory: tauri/src-tauri
+        run: cargo test --release
+
+      - name: Compilar instalador (.exe)
+        working-directory: tauri
+        run: |
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            npx tauri build --config src-tauri/tauri.release.conf.json
+          elif [ "$RELEASE" = "true" ]; then
+            echo "::error::Faltan los secretos TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD: sin ellos, las actualizaciones automáticas no funcionarían."
+            exit 1
+          else
+            echo "Sin clave del actualizador: se compila el instalador sin archivos de actualización."
+            npx tauri build
+          fi
+
+      - name: Dejar el instalador con el nombre fijo
+        run: |
+          ls -la tauri/src-tauri/target/release/bundle/nsis/
+          f=$(ls tauri/src-tauri/target/release/bundle/nsis/*-setup.exe | head -n 1)
+          test -n "$f" || { echo "No se generó el instalador"; exit 1; }
+          mkdir -p out
+          cp "$f" out/Trident-Client-Setup.exe
+          if [ -f "$f.sig" ]; then cp "$f.sig" out/Trident-Client-Setup.exe.sig; fi
+          ls -la out
+
+      - name: Archivos del actualizador (latest.json y latest.yml)
+        if: env.RELEASE == 'true'
+        run: |
+          test -f out/Trident-Client-Setup.exe.sig || { echo "Falta la firma del instalador"; exit 1; }
+          node - "${GITHUB_REF_NAME#v}" "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" <<'EOF'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const [version, tag, repo] = process.argv.slice(2);
+          const exe = fs.readFileSync('out/Trident-Client-Setup.exe');
+          const now = new Date().toISOString();
+          // Actualizador de Tauri.
+          fs.writeFileSync('out/latest.json', JSON.stringify({
+            version,
+            notes: `Trident Client ${version}`,
+            pub_date: now,
+            platforms: {
+              'windows-x86_64': {
+                signature: fs.readFileSync('out/Trident-Client-Setup.exe.sig', 'utf8').trim(),
+                url: `https://github.com/${repo}/releases/download/${tag}/Trident-Client-Setup.exe`
+              }
+            }
+          }, null, 2) + '\n');
+          // electron-updater (versión Electron): baja este instalador, comprueba el sha512 y lo ejecuta con
+          // «--updated /S --force-run». El instalador de Tauri desinstala la versión Electron (Nova Client) y abre Trident Client.
+          const sha512 = crypto.createHash('sha512').update(exe).digest('base64');
+          fs.writeFileSync('out/latest.yml', [
+            `version: ${version}`,
+            'files:',
+            '  - url: Trident-Client-Setup.exe',
+            `    sha512: ${sha512}`,
+            `    size: ${exe.length}`,
+            'path: Trident-Client-Setup.exe',
+            `sha512: ${sha512}`,
+            `releaseDate: '${now}'`,
+            ''
+          ].join('\n'));
+          EOF
+          cat out/latest.json out/latest.yml
+
+      - name: Publicar el release
+        if: env.RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Release normal (no pre-release): «releases/latest» tiene que apuntar acá. «mods-rolling» sigue siendo pre-release.
+          gh release create "$GITHUB_REF_NAME" \
+            out/Trident-Client-Setup.exe out/Trident-Client-Setup.exe.sig out/latest.json out/latest.yml \
+            --title "Trident Client ${GITHUB_REF_NAME#v}" \
+            --notes "Trident Client ${GITHUB_REF_NAME#v}" \
+            --latest
+
+      - name: Subir instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trident-Client-Setup-Tauri
+          path: out/

@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://mc-heads.net https://launchercontent.mojang.com https://cdn.modrinth.com; connect-src ipc: http://ipc.localhost" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trident Client</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Pantalla de carga -->
+  <div id="boot" class="boot" aria-label="Cargando">
+    <img class="boot-icon pixel" src="logo.png" alt="Trident Client" draggable="false" />
+    <div class="boot-spinner" role="progressbar" aria-label="Cargando"></div>
+  </div>
+
+  <!-- Barra superior: logo, pestañas y botones de ventana -->
+  <header class="topbar">
+    <div class="tb-brand">
+      <img class="pixel" src="logo.png" alt="" width="30" height="30" draggable="false" />
+      <span class="tb-word" id="titlebar-name">TRIDENT <b>CLIENT</b></span>
+    </div>
+
+    <nav class="tabs" id="rail-nav" aria-label="Secciones"></nav>
+
+    <div class="tb-right">
+      <button id="update-pill" class="update-pill hidden" type="button"></button>
+      <button id="btn-chat" class="tb-icon" title="Charlas" aria-label="Charlas"><span id="ico-chat"></span><i class="tb-new">NUEVO</i></button>
+      <button id="btn-bell" class="tb-icon" title="Notificaciones" aria-label="Notificaciones">
+        <span id="ico-bell"></span><i id="bell-dot" class="bell-dot hidden"></i>
+      </button>
+      <button id="btn-palette" class="tb-icon" title="Apariencia" aria-label="Apariencia"><span id="ico-palette"></span></button>
+      <button id="rail-settings" class="tb-icon" title="Ajustes" aria-label="Ajustes"></button>
+      <span class="tb-sep" aria-hidden="true"></span>
+      <button id="btn-min" class="tb-win" title="Minimizar" aria-label="Minimizar">
+        <svg viewBox="0 0 12 12" width="12" height="12"><path d="M2 6h8"/></svg>
+      </button>
+      <button id="btn-max" class="tb-win" title="Maximizar" aria-label="Maximizar">
+        <svg id="ico-max" viewBox="0 0 12 12" width="11" height="11"><rect x="1.5" y="1.5" width="9" height="9" rx="1"/></svg>
+        <svg id="ico-restore" class="hidden" viewBox="0 0 12 12" width="11" height="11"><rect x="1.5" y="3.5" width="7" height="7" rx="1"/><path d="M3.5 3.5v-1a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1"/></svg>
+      </button>
+      <button id="btn-close" class="tb-win tb-close" title="Cerrar" aria-label="Cerrar">
+        <svg viewBox="0 0 12 12" width="11" height="11"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <main class="content">
+      <!-- ═══════════ INICIO ═══════════ -->
+      <section id="view-home" class="view active">
+        <div class="home">
+          <!-- Escena: fondo de Minecraft, versión del perfil y tu personaje -->
+          <div class="hero glass">
+            <div class="hero-bg" id="hero-bg-a"></div>
+            <div class="hero-bg" id="hero-bg-b"></div>
+            <div class="hero-shade"></div>
+
+            <div class="hero-top">
+              <div id="status-pill" class="status-pill">Ninguna instancia en ejecución</div>
+              <div class="hero-actions">
+                <button id="btn-profile-options" class="hero-btn" type="button" title="Opciones del perfil" aria-label="Opciones del perfil"></button>
+                <button id="btn-manage-profiles" class="hero-btn wide" type="button"></button>
+              </div>
+            </div>
+
+            <div class="hero-info">
+              <span class="hero-kicker" id="hero-kicker">Perfil</span>
+              <h1 class="hero-title" id="hero-title">Minecraft</h1>
+              <span class="hero-sub" id="hero-sub"></span>
+            </div>
+
+            <div id="nametag" class="nametag">Sin sesión</div>
+            <canvas id="skin3d" class="skin3d dim hidden" aria-label="Tu personaje en 3D"></canvas>
+            <img id="skin" class="skin dim" alt="Tu personaje" />
+
+            <div class="hero-pill" id="hero-pill">
+              <span id="hero-pill-text">Conectá tu cuenta para jugar</span>
+              <button class="btn btn-accent btn-small js-login" id="hero-login">Iniciar sesión</button>
+            </div>
+          </div>
+
+          <!-- Botón grande para jugar + selector de perfil -->
+          <div class="launch">
+            <button id="rail-play" class="launch-btn" type="button" disabled>
+              <span class="launch-fill" id="launch-fill"></span>
+              <span class="launch-label" id="launch-label">JUGAR</span>
+            </button>
+            <button id="btn-profile-pick" class="launch-pick" type="button" title="Elegir perfil" aria-label="Elegir perfil"></button>
+          </div>
+          <div class="launch-status">
+            <div class="home-progress" id="home-progress">
+              <div class="progress-text" id="progress-text">Todo listo.</div>
+              <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+            </div>
+            <p id="play-error" class="error hidden" role="alert"></p>
+          </div>
+
+          <!-- Novedades -->
+          <section class="panel news-panel glass" aria-label="Novedades">
+            <div class="panel-head">
+              <span class="panel-title">Novedades de Minecraft</span>
+              <button id="btn-news-all" class="link-btn" type="button">Ver todo →</button>
+            </div>
+            <div id="news-list" class="news-carousel">
+              <div class="news-empty muted small">Cargando novedades…</div>
+            </div>
+            <div class="news-dots" id="news-dots"></div>
+          </section>
+
+          <!-- Mods del perfil elegido -->
+          <section class="panel mods-panel glass" aria-label="Mods instalados">
+            <div class="panel-head">
+              <span class="panel-title" id="mods-title">Mods instalados</span>
+              <div class="panel-actions">
+                <span class="count-pill" id="mods-count">0</span>
+                <button id="btn-add-mods" class="link-btn" type="button"></button>
+              </div>
+            </div>
+            <div id="home-mods" class="home-mods"></div>
+          </section>
+
+          <!-- Panel derecho: logo de Trident, cuenta e instalación -->
+          <aside class="brand-panel glass">
+            <div class="brand-stars" aria-hidden="true"></div>
+            <div class="brand-center">
+              <div class="brand-glow" aria-hidden="true"></div>
+              <img class="brand-logo pixel" src="logo.png" alt="Trident Client" draggable="false" />
+              <div class="brand-name">TRIDENT <b>CLIENT</b></div>
+              <div class="brand-ver muted small" id="brand-ver"></div>
+            </div>
+
+            <div class="side-card">
+              <div id="account-out" class="account-box">
+                <div class="account-hint muted small">Iniciá sesión para jugar online</div>
+                <button class="btn btn-accent btn-block js-login">Iniciar sesión con Microsoft</button>
+                <button id="btn-offline-login" class="btn btn-ghost btn-block btn-small">Jugar sin cuenta</button>
+              </div>
+              <div id="account-in" class="account-box hidden">
+                <div class="account-row">
+                  <img id="avatar" class="chip-avatar" alt="" width="40" height="40" />
+                  <div class="account-meta">
+                    <span id="account-name" class="chip-name">—</span>
+                    <span id="account-kind" class="muted small">Cuenta de Microsoft</span>
+                  </div>
+                  <button id="btn-logout" class="btn btn-ghost btn-small">Salir</button>
+                </div>
+              </div>
+
+              <div class="info-card">
+                <div class="info-row"><span class="muted">Memoria</span><strong id="info-ram">—</strong></div>
+                <div class="info-row"><span class="muted">Java</span><strong id="info-java">Automático</strong></div>
+                <div class="info-row"><span class="muted">Perfiles</span><strong id="info-count">—</strong></div>
+                <button id="btn-go-settings" class="btn btn-dark btn-block btn-small">Cambiar ajustes</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ═══════════ PERFILES ═══════════ -->
+      <section id="view-profiles" class="view">
+        <div class="page-head">
+          <h2>Perfiles</h2>
+          <div class="page-actions">
+            <button id="btn-new-folder" class="btn btn-dark"></button>
+            <button id="btn-import" class="btn btn-dark"></button>
+            <button id="btn-new-profile" class="btn btn-green"></button>
+          </div>
+        </div>
+        <div class="toolbar">
+          <div id="profile-tabs" class="seg"></div>
+          <label class="search-box">
+            <span id="ico-search-profiles"></span>
+            <input id="profile-search" type="text" placeholder="Buscar perfiles" spellcheck="false" />
+          </label>
+        </div>
+        <div id="profile-groups"></div>
+      </section>
+
+      <!-- ═══════════ DETALLE DE PERFIL ═══════════ -->
+      <section id="view-detail" class="view"></section>
+
+      <!-- ═══════════ CONTENIDO (buscador global) ═══════════ -->
+      <section id="view-browse" class="view"></section>
+
+      <!-- ═══════════ SERVIDORES ═══════════ -->
+
+      <!-- ═══════════ REGISTRO ═══════════ -->
+      <section id="view-console" class="view">
+        <div class="page-head">
+          <h2>Registro</h2>
+          <button id="btn-clear-log" class="btn btn-dark btn-small">Limpiar</button>
+        </div>
+        <pre id="log" class="log" tabindex="0"></pre>
+      </section>
+    </main>
+  </div>
+
+  <!-- Panel social (Charlas / Amigos) -->
+  <div id="social" class="social"></div>
+
+  <script src="launcher-shim.js"></script>
+  <script src="boot.js"></script>
+  <script src="ui.js"></script>
+  <script src="skin3d.js"></script>
+  <script src="detail.js"></script>
+  <script src="mods.js"></script>
+  <script src="settings.js"></script>
+  <script src="social.js"></script>
+  <script src="bg-rotator.js"></script>
+  <script src="app.js"></script>
+  <script src="offline-login.js"></script>
+</body>
+</html>

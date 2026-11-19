@@ -1,0 +1,14 @@
+{
+  "name": "trident-client",
+  "private": true,
+  "version": "1.3.0",
+  "description": "Trident Client: launcher de Minecraft (Tauri)",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "check": "cargo check --manifest-path src-tauri/Cargo.toml"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

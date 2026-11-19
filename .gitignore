@@ -1,0 +1,10 @@
+node_modules/
+*.log
+client-mod/.gradle/
+client-mod/build/
+client-mod/.box-yarn/
+tauri/src-tauri/target/
+tauri/src-tauri/gen/
+
+# Clave privada del actualizador: nunca al repositorio
+*.key
