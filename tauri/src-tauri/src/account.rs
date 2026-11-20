@@ -99,7 +99,10 @@ async fn oauth_code(app: &AppHandle) -> Result<String, String> {
     };
     let on_nav = send.clone();
 
+    let user_dir = app.state::<crate::AppState>().user_dir.clone();
+    let args = crate::system::session_browser_args(&crate::settings::read(&user_dir));
     let win = WebviewWindowBuilder::new(app, "ms-login", WebviewUrl::External(parsed))
+        .additional_browser_args(args)
         .title("Iniciar sesión con Microsoft")
         .inner_size(520.0, 700.0)
         .center()

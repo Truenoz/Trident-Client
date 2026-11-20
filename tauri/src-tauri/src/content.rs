@@ -140,7 +140,7 @@ fn is_managed(meta: Option<&Value>) -> bool {
 
 fn is_core_mod(base: &str) -> bool {
     let l = base.to_lowercase();
-    l.starts_with("nova-client") || l.starts_with("fabric-api")
+    l.starts_with("nova-client") || l.starts_with("trident-client") || l.starts_with("fabric-api")
 }
 
 pub fn list_content(env: &Env, id: &str) -> Result<Value, String> {

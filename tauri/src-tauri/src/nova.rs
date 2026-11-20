@@ -79,15 +79,23 @@ async fn rolling_release() -> Result<Option<Value>, String> {
     }
 }
 
+/// Archivo del release para esa versión: `trident-client-<mc>.jar` (o el nombre viejo `nova-client-<mc>.jar`).
+fn find_asset<'a>(release: &'a Value, mc: &str) -> Option<&'a Value> {
+    let assets = release["assets"].as_array()?;
+    [format!("trident-client-{mc}.jar"), format!("nova-client-{mc}.jar")]
+        .iter()
+        .find_map(|name| assets.iter().find(|x| x["name"].as_str() == Some(name.as_str())))
+}
+
 /// Baja el jar de `mc` del release si es distinto del guardado. Devuelve true si lo actualizó.
+/// En la PC se guarda siempre como `mod-cache/nova-client-<mc>.jar` (nombre interno, no se ve).
 async fn take_from_release(cache: &Path, release: &Value, mc: &str, log: &(dyn Fn(String) + Send + Sync)) -> Result<bool, String> {
     let wanted = format!("nova-client-{mc}.jar");
     let jar = cache.join(&wanted);
-    let asset = release["assets"].as_array().and_then(|a| a.iter().find(|x| x["name"].as_str() == Some(wanted.as_str())));
-    let asset = match asset {
+    let asset = match find_asset(release, mc) {
         Some(a) => a,
         None => {
-            log(format!("[Trident] El release «{ROLLING_TAG}» no tiene {wanted}."));
+            log(format!("[Trident] El release «{ROLLING_TAG}» no tiene trident-client-{mc}.jar."));
             return Ok(false);
         }
     };
@@ -236,6 +244,19 @@ pub fn install_jar(src: &Path, dest: &Path, log: &(dyn Fn(String) + Send + Sync)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn find_asset_acepta_el_nombre_nuevo_y_el_viejo() {
+        let r = json!({ "assets": [
+            { "name": "trident-client-1.21.4.jar", "id": 1 },
+            { "name": "nova-client-1.20.1.jar", "id": 2 },
+            { "name": "trident-client-1.21.jar", "id": 3 }
+        ]});
+        assert_eq!(find_asset(&r, "1.21.4").unwrap()["id"], 1);
+        assert_eq!(find_asset(&r, "1.20.1").unwrap()["id"], 2);
+        assert_eq!(find_asset(&r, "1.21").unwrap()["id"], 3);
+        assert!(find_asset(&r, "1.21.9").is_none());
+    }
 
     fn make_jar(meta: &str, extra: &[&str]) -> Vec<u8> {
         let mut z = zip::ZipWriter::new(Cursor::new(Vec::new()));

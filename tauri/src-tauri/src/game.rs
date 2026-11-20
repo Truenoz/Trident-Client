@@ -134,7 +134,7 @@ fn remove_nova_jars(mods_dir: &Path) {
     if let Ok(rd) = std::fs::read_dir(mods_dir) {
         for e in rd.flatten() {
             let n = e.file_name().to_string_lossy().to_lowercase();
-            if n.starts_with("nova-client") && n.ends_with(".jar") {
+            if (n.starts_with("nova-client") || n.starts_with("trident-client")) && n.ends_with(".jar") {
                 let _ = std::fs::remove_file(e.path());
             }
         }
@@ -186,7 +186,7 @@ async fn prepare_profile(app: &AppHandle, profile: &Value, inst: &Path, root: &P
         let user_dir = app.state::<AppState>().user_dir.clone();
         let logger = |m: String| log(app, m);
         match nova::ensure_jar(&user_dir, &mc, &logger).await {
-            Ok(Some(jar)) => match nova::install_jar(&jar, &mods_dir.join("nova-client.jar"), &logger) {
+            Ok(Some(jar)) => match nova::install_jar(&jar, &mods_dir.join("trident-client.jar"), &logger) {
                 Ok(()) => with_nova = true,
                 Err(e) => log(app, format!("[Trident] No se pudo copiar el mod: {e}")),
             },

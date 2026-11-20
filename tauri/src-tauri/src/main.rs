@@ -673,7 +673,7 @@ fn main() {
             // La ventana se crea acá (no desde tauri.conf.json) para aplicar «Aceleración por hardware».
             let win_cfg = app.config().app.windows.first().cloned().ok_or("Falta la ventana en tauri.conf.json")?;
             tauri::WebviewWindowBuilder::from_config(app.handle(), &win_cfg)?
-                .additional_browser_args(&system::browser_args(&current))
+                .additional_browser_args(system::session_browser_args(&current))
                 .build()?;
 
             // Bandeja, inicio con Windows y zoom.

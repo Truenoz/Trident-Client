@@ -33,6 +33,15 @@ pub fn browser_args(s: &Map<String, Value>) -> String {
     }
 }
 
+/// Los argumentos con los que arrancó WebView2 en esta sesión. Todas las ventanas (la principal y la de
+/// Microsoft) tienen que usar exactamente los mismos: si difieren, WebView2 falla con 0x8007139F.
+/// Se fijan una sola vez al abrir el launcher; cambiar «Aceleración por hardware» se aplica al reiniciar.
+static SESSION_ARGS: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+pub fn session_browser_args(s: &Map<String, Value>) -> &'static str {
+    SESSION_ARGS.get_or_init(|| browser_args(s))
+}
+
 // ───────────────────────── Zoom de la interfaz ─────────────────────────
 
 /// Escala válida de la interfaz: de 0.8 a 1.6; si no es un número, 1.

@@ -12,6 +12,10 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.3.5', [
+    'Arreglado: iniciar sesión con Microsoft fallaba con un error de WebView2 (0x8007139F).',
+    'Arreglado: el mod de Trident no se descargaba (ahora reconoce los archivos trident-client-<versión>.jar).'
+  ]],
   ['1.3.2', [
     'Cada perfil muestra la imagen oficial de su versión de Minecraft.',
     'El mod integrado ahora se muestra como Trident Client en todo el launcher.',

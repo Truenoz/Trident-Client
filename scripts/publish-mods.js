@@ -18,7 +18,7 @@ const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 
 const files = fs.existsSync(modDir)
   ? fs.readdirSync(modDir)
-    .map((f) => ({ f, mc: /^nova-client-(.+)\.jar$/.exec(f)?.[1] }))
+    .map((f) => ({ f, mc: /^(?:trident|nova)-client-(.+)\.jar$/.exec(f)?.[1] }))
     .filter((x) => x.mc && (!only.length || only.includes(x.mc)))
     .map((x) => path.join(modDir, x.f))
   : [];
