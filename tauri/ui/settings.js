@@ -12,6 +12,10 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.3.6', [
+    'Nueva pantalla de mantenimiento, con el mismo diseño que la web: cuenta regresiva, mensaje del equipo y acceso a Discord.',
+    'Arreglado: en la 1.3.5 el aviso de mantenimiento no aparecía.'
+  ]],
   ['1.3.5', [
     'Arreglado: iniciar sesión con Microsoft fallaba con un error de WebView2 (0x8007139F).',
     'Arreglado: el mod de Trident no se descargaba (ahora reconoce los archivos trident-client-<versión>.jar).'

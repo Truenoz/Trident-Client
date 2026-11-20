@@ -1,0 +1,114 @@
+/* Trident Client — pantalla de mantenimiento del launcher.
+   Mismo diseño que la de la web (tridentclient.com), con fondo negro y los colores del launcher.
+   La carga maintenance.js; no hace falta tocar index.html ni styles.css. */
+
+@font-face {
+  font-family: "Trident Oswald";
+  font-style: normal; font-weight: 200 700; font-display: swap;
+  src: url("maintenance/oswald.woff2") format("woff2");
+}
+
+.tcm {
+  --tcm-a: var(--accent-a, #ea3a46);
+  --tcm-a2: var(--orange-2, #ff7b84);
+  --tcm-rgb: var(--accent-rgb, 234, 58, 70);
+  --tcm-ink: var(--text, #f1f1f4);
+  --tcm-mute: #a3a3ad;
+  --tcm-dim: #6d6d78;
+  --tcm-line: #24242b;
+  position: fixed; left: 0; right: 0; bottom: 0; top: var(--topbar, 64px); z-index: 900;
+  overflow: auto; color: var(--tcm-ink); background: #000;
+  font-family: "Segoe UI", system-ui, sans-serif; user-select: none;
+  animation: tcm-fade .3s ease-out;
+}
+@keyframes tcm-fade { from { opacity: 0; } }
+
+.tcm__wrap { position: relative; min-height: 100%; display: flex; flex-direction: column; max-width: 1180px; margin: 0 auto; padding: 22px 48px 22px; }
+.tcm__top { display: flex; justify-content: flex-end; }
+.tcm__pill {
+  display: inline-flex; align-items: center; gap: 9px; padding: 7px 14px 7px 12px; border-radius: 999px;
+  border: 1px solid rgba(var(--tcm-rgb), .45); background: rgba(var(--tcm-rgb), .1); color: var(--tcm-a2);
+  font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; white-space: nowrap;
+}
+.tcm__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tcm-a); animation: tcm-pulse 2s ease-out infinite; }
+@keyframes tcm-pulse { 0% { box-shadow: 0 0 0 0 rgba(var(--tcm-rgb), .55); } 80%, 100% { box-shadow: 0 0 0 9px rgba(var(--tcm-rgb), 0); } }
+
+.tcm__main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); align-items: center; gap: 56px; padding: 12px 0 24px; }
+.tcm__copy { max-width: 560px; }
+.tcm__kicker { margin: 0 0 12px; color: var(--tcm-mute); font-size: 13px; font-weight: 800; letter-spacing: .2em; text-transform: uppercase; }
+.tcm__title {
+  margin: 0 0 18px; font-family: "Trident Oswald", "Segoe UI", sans-serif; font-weight: 700; text-transform: uppercase;
+  font-size: clamp(54px, min(7.4vw, 11.5vh), 104px); line-height: .9; letter-spacing: .01em;
+}
+.tcm__title em { display: block; font-style: normal; color: var(--tcm-a); text-shadow: 0 0 40px rgba(var(--tcm-rgb), .35); }
+.tcm__msg { margin: 0 0 22px; max-width: 46ch; color: var(--tcm-mute); font-size: 16px; line-height: 1.6; }
+
+.tcm__note { margin: 0 0 22px; padding: 12px 16px 12px 18px; border-left: 3px solid var(--tcm-a); border-radius: 0 10px 10px 0;
+  background: linear-gradient(90deg, rgba(var(--tcm-rgb), .1), transparent); }
+.tcm__note b { display: block; margin-bottom: 4px; color: var(--tcm-a2); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; }
+.tcm__note p { margin: 0; font-size: 15px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; user-select: text; }
+
+.tcm__count { margin: 0 0 24px; }
+.tcm__label { display: block; margin: 0 0 10px; color: var(--tcm-dim); font-size: 12px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+.tcm__tiles { display: flex; align-items: flex-start; gap: 10px; }
+.tcm__tile { min-width: 84px; padding: 12px 10px 9px; text-align: center; border-radius: 12px; border: 1px solid var(--tcm-line);
+  background: linear-gradient(180deg, #17171b, #0f0f12); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 12px 30px rgba(0, 0, 0, .35); }
+.tcm__num { display: block; font-family: "Trident Oswald", "Segoe UI", sans-serif; font-weight: 600; font-size: 46px; line-height: 1; font-variant-numeric: tabular-nums; }
+.tcm__unit { display: block; margin-top: 6px; color: var(--tcm-dim); font-size: 10px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+.tcm__sep { align-self: center; margin-top: -18px; color: var(--tcm-a); font-family: "Trident Oswald", sans-serif; font-size: 30px; opacity: .7; }
+.tcm__bar { position: relative; height: 6px; max-width: 420px; margin: 16px 0 10px; border-radius: 99px; background: #1c1c21; overflow: hidden; }
+.tcm__fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--accent-b, #b81d2b), var(--tcm-a), var(--tcm-a2)); transition: width 1s linear; }
+.tcm__ends { margin: 0; color: var(--tcm-mute); font-size: 14px; }
+.tcm__ends strong { color: var(--tcm-ink); }
+.tcm__noeta { margin: 0 0 24px; max-width: 46ch; color: var(--tcm-mute); font-size: 15px; line-height: 1.55; }
+
+.tcm__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.tcm__btn {
+  display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 20px; border-radius: 12px; border: 1px solid transparent;
+  font: inherit; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
+  transition: transform .15s ease, background .15s ease, border-color .15s ease;
+}
+.tcm__btn svg { width: 18px; height: 18px; }
+.tcm__btn--main { background: linear-gradient(135deg, var(--tcm-a), var(--accent-b, #b81d2b)); color: #fff; box-shadow: 0 10px 30px rgba(var(--tcm-rgb), .3); }
+.tcm__btn--main:hover { transform: translateY(-1px); filter: brightness(1.08); }
+.tcm__btn--ghost { background: rgba(255, 255, 255, .03); border-color: #33333b; color: var(--tcm-ink); }
+.tcm__btn--ghost:hover { border-color: var(--tcm-a); }
+.tcm__btn:disabled { opacity: .6; cursor: default; transform: none; }
+.tcm__btn:focus-visible { outline: 2px solid var(--tcm-a2); outline-offset: 3px; }
+.tcm__btn.is-busy svg { animation: tcm-spin .9s linear infinite; }
+@keyframes tcm-spin { to { transform: rotate(360deg); } }
+
+.tcm__art { position: relative; display: flex; justify-content: center; align-items: flex-end; }
+.tcm__char { position: relative; z-index: 1; height: min(58vh, 520px); width: auto; max-width: 100%; object-fit: contain;
+  filter: drop-shadow(0 24px 40px rgba(0, 0, 0, .55)); animation: tcm-bob 4.5s ease-in-out infinite; -webkit-user-drag: none; }
+.tcm__shadow { position: absolute; bottom: -6px; left: 50%; width: 46%; height: 22px; transform: translateX(-50%); border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, .7), transparent 70%); animation: tcm-shadow 4.5s ease-in-out infinite; }
+@keyframes tcm-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+@keyframes tcm-shadow { 0%, 100% { transform: translateX(-50%) scale(1); opacity: 1; } 50% { transform: translateX(-50%) scale(.82); opacity: .7; } }
+
+.tcm__foot { display: flex; justify-content: space-between; gap: 8px 20px; padding-top: 14px; border-top: 1px solid var(--tcm-line); color: var(--tcm-dim); font-size: 13px; }
+.tcm__live { display: inline-flex; align-items: center; gap: 8px; }
+.tcm__live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green, #2fd35f); }
+
+.tcm__in { opacity: 0; transform: translateY(12px); animation: tcm-in .55s cubic-bezier(.2, .7, .2, 1) forwards; }
+.tcm__in.d1 { animation-delay: 70ms; } .tcm__in.d2 { animation-delay: 140ms; } .tcm__in.d3 { animation-delay: 210ms; }
+.tcm__in.d4 { animation-delay: 280ms; } .tcm__in.d5 { animation-delay: 350ms; }
+@keyframes tcm-in { to { opacity: 1; transform: none; } }
+
+/* Ventanas bajas (el launcher permite hasta 1100×700) */
+@media (max-height: 800px) {
+  .tcm__wrap { padding-top: 14px; padding-bottom: 14px; }
+  .tcm__kicker { margin-bottom: 8px; } .tcm__title { margin-bottom: 12px; }
+  .tcm__msg, .tcm__note, .tcm__count, .tcm__noeta { margin-bottom: 16px; }
+  .tcm__tile { padding: 9px 10px 7px; } .tcm__num { font-size: 38px; }
+  .tcm__bar { margin: 12px 0 8px; }
+  .tcm__title { font-size: clamp(50px, min(7vw, 10.5vh), 96px); }
+  .tcm__char { height: min(54vh, 460px); }
+}
+@media (max-width: 1240px) { .tcm__main { gap: 32px; } .tcm__wrap { padding-left: 36px; padding-right: 36px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tcm, .tcm__char, .tcm__shadow, .tcm__dot, .tcm__btn.is-busy svg { animation: none; }
+  .tcm__in { animation: none; opacity: 1; transform: none; }
+  .tcm__fill { transition: none; }
+}
