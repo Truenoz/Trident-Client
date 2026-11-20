@@ -52,6 +52,7 @@
     setSettings: cmd('settings_set', (patch) => ({ patch: patch || {} })),
     listVersions: cmd('versions_list'),
     news: cmd('news_list'),
+    versionArt: cmd('version_art'),
     openExternal: cmd('shell_external', (url) => ({ url })),
     openFolder: cmd('folder_open'),
     openDataFolder: cmd('data_open'),

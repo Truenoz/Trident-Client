@@ -164,7 +164,7 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-Enlace de descarga para usuarios nuevos (siempre la última versión): `https://github.com/Truenoz/Nova-Client/releases/latest/download/Trident-Client-Setup.exe`
+Enlace de descarga para usuarios nuevos (siempre la última versión): `https://github.com/Truenoz/Trident-Client/releases/latest/download/Trident-Client-Setup.exe`
 
 ## Probarlo en desarrollo (Windows)
 

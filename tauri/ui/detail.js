@@ -20,10 +20,10 @@ const detail = {
 };
 
 const DETAIL_TABS = [
-  { id: 'content', label: 'CONTENIDO', icon: 'cube' },
-  { id: 'worlds', label: 'MUNDOS', icon: 'globe' },
-  { id: 'logs', label: 'REGISTROS', icon: 'console' },
-  { id: 'settings', label: 'AJUSTES', icon: 'settings' },
+  { id: 'content', label: 'Contenido', icon: 'cube' },
+  { id: 'worlds', label: 'Mundos', icon: 'globe' },
+  { id: 'logs', label: 'Registros', icon: 'console' },
+  { id: 'settings', label: 'Ajustes', icon: 'settings' },
   { id: 'share', label: 'Compartir', icon: 'share' }
 ];
 
@@ -102,7 +102,7 @@ function renderDetailLeft() {
     : h('button', {
       class: 'btn btn-play btn-big btn-block', type: 'button', disabled: !canPlay(),
       onclick: () => playProfile(p.id)
-    }, icon('play'), active ? 'Preparando…' : state.account ? 'Play now' : 'Inicia sesión para jugar');
+    }, icon('play'), active ? 'Preparando…' : state.account ? 'Jugar' : 'Inicia sesión para jugar');
 
   detail.progressText = h('div', { class: 'progress-text', text: active ? els.progressText.textContent : '' });
   detail.progressBar = h('div', { class: 'progress-bar' });
@@ -115,16 +115,16 @@ function renderDetailLeft() {
   box.append(
     artWrap,
     h('div', { class: 'detail-tags' },
-      h('span', { class: 'tag tag-ok', text: p.origin === 'pack' ? 'Paquete' : 'Custom' }),
+      h('span', { class: 'tag tag-ok', text: p.origin === 'pack' ? 'Modpack' : 'Personalizado' }),
       p.nova ? h('span', { class: 'tag tag-nova', text: 'Nova Client' }) : null),
     h('div', { class: 'muted small', text: `${p.loaderLabel} ${p.mc}` }),
     play,
     progress,
-    h('button', { class: 'btn btn-dark btn-block', type: 'button', text: 'ABRIR CARPETA', onclick: () => call(window.launcher.openProfileFolder(p.id)).catch((e) => toast(e.message, 'error')) }),
-    h('button', { class: 'btn btn-dark btn-block', type: 'button', text: 'PERFIL DE EXPORTACIÓN', onclick: () => exportProfile(p) }),
+    h('button', { class: 'btn btn-dark btn-block', type: 'button', text: 'Abrir carpeta', onclick: () => call(window.launcher.openProfileFolder(p.id)).catch((e) => toast(e.message, 'error')) }),
+    h('button', { class: 'btn btn-dark btn-block', type: 'button', text: 'Exportar perfil', onclick: () => exportProfile(p) }),
     h('div', { class: 'info-list' },
       infoRow('folder', 'Contenido', contentText),
-      infoRow('clock', 'TIEMPO DE JUEGO', formatPlaytime(p.playtimeSec)),
+      infoRow('clock', 'Tiempo de juego', formatPlaytime(p.playtimeSec)),
       infoRow('clock', 'Jugado por última vez', timeAgo(p.lastPlayed))),
     perfCard(p)
   );
@@ -251,14 +251,14 @@ function renderContentTab(panel, p) {
   }, icon('sync', 18), 'Sincronización automática');
   const toolbar = h('div', { class: 'content-toolbar' },
     syncBtn,
-    h('button', { class: 'btn btn-dark', type: 'button', onclick: () => changeVersion(p) }, icon('layers', 18), 'Change version'),
-    h('button', { class: 'btn btn-accent', type: 'button', onclick: () => openAddContent(p.id) }, icon('plus', 18), 'AÑADIR CONTENIDO'));
+    h('button', { class: 'btn btn-dark', type: 'button', onclick: () => changeVersion(p) }, icon('layers', 18), 'Cambiar versión'),
+    h('button', { class: 'btn btn-accent', type: 'button', onclick: () => openAddContent(p.id) }, icon('plus', 18), 'Añadir contenido'));
 
   const search = h('input', { type: 'text', class: 'input', placeholder: 'Buscar', value: detail.query, spellcheck: 'false' });
   search.addEventListener('input', () => { detail.query = search.value; drawTable(); });
   const searchBox = h('label', { class: 'search-box wide' }, icon('search', 18), search);
 
-  const seg = h('div', { class: 'seg full' }, [['all', 'TODOS'], ['mod', 'Modificaciones'], ['resourcepack', 'Paquetes de recursos']].map(([id, label]) =>
+  const seg = h('div', { class: 'seg full' }, [['all', 'Todos'], ['mod', 'Modificaciones'], ['resourcepack', 'Paquetes de recursos']].map(([id, label]) =>
     h('button', {
       class: `seg-btn${detail.filter === id ? ' active' : ''}`, type: 'button',
       onclick: () => { detail.filter = id; detail.selected = new Set(); renderDetailRight(); }
@@ -311,9 +311,9 @@ function renderContentTab(panel, p) {
       detail.selected = headCheck.checked ? new Set(rows.map((r) => r.file)) : new Set();
       drawTable();
     });
-    table.append(h('div', { class: 'trow thead' }, h('span', {}, headCheck), h('span', {}), h('span', { text: 'Name' }), h('span', { text: 'Type' }), h('span', { text: 'Source' }), h('span', { text: 'Version' }), h('span', {})));
+    table.append(h('div', { class: 'trow thead' }, h('span', {}, headCheck), h('span', {}), h('span', { text: 'Nombre' }), h('span', { text: 'Tipo' }), h('span', { text: 'Origen' }), h('span', { text: 'Versión' }), h('span', {})));
     if (!rows.length) {
-      table.append(h('div', { class: 'empty-card' }, h('span', { class: 'muted', text: detail.content.length ? 'Nada coincide con la búsqueda.' : 'Este perfil no tiene contenido todavía. Usá «AÑADIR CONTENIDO».' })));
+      table.append(h('div', { class: 'empty-card' }, h('span', { class: 'muted', text: detail.content.length ? 'Nada coincide con la búsqueda.' : 'Este perfil no tiene contenido todavía. Usá «Añadir contenido».' })));
     }
     for (const c of rows) table.append(contentRow(c));
     drawBulk(rows);
@@ -359,7 +359,7 @@ function renderContentTab(panel, p) {
     return h('div', { class: `trow${c.enabled ? '' : ' off'}${c.compat?.status === 'bad' ? ' incompat' : ''}` },
       h('span', {}, chk),
       ico,
-      h('span', { class: 'c-name' }, h('strong', { text: c.name }), h('span', { class: 'muted small', text: c.author ? `by ${c.author}` : c.base })),
+      h('span', { class: 'c-name' }, h('strong', { text: c.name }), h('span', { class: 'muted small', text: c.author ? `de ${c.author}` : c.base })),
       h('span', {}, h('span', { class: 'tag-pill', text: c.type === 'mod' ? 'Mod' : 'Pack' })),
       h('span', { class: 'c-source' }, c.source === 'Modrinth' ? h('img', { src: 'loaders/modrinth.png', alt: 'Modrinth', class: 'src-logo', width: 16, height: 16, draggable: false }) : icon('file', 16), c.source),
       h('span', { class: 'c-version', title: c.version, text: c.version || '—' }, compatBadge(c)),
@@ -460,7 +460,7 @@ function contentBrowser(getId) {
       more.classList.toggle('hidden', offset >= total || !r.hits.length);
     } catch (e) {
       results.textContent = '';
-      results.append(h('div', { class: 'empty-card' }, h('span', { class: 'muted', text: `No se pudo buscar: ${e.message}` })));
+      results.append(h('div', { class: 'empty-card' }, h('span', { class: 'muted', text: searchError(e) })));
     }
   }
 
@@ -492,7 +492,7 @@ function contentBrowser(getId) {
       hit.icon ? h('img', { class: 'c-icon', src: hit.icon, alt: '', width: 48, height: 48 }) : h('span', { class: 'c-icon ph' }, icon('cube', 24)),
       h('div', { class: 'grow' },
         h('strong', { text: hit.title }),
-        h('span', { class: 'muted small', text: ` by ${hit.author}` }),
+        h('span', { class: 'muted small', text: ` de ${hit.author}` }),
         h('p', { class: 'muted small clamp', text: hit.description })),
       h('span', { class: 'muted small downloads' }, icon('download', 14), formatCount(hit.downloads)),
       btn);

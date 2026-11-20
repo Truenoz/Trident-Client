@@ -49,7 +49,7 @@ function openChangelog() {
 }
 
 const SETTINGS_NAV = [
-  ['LAUNCHER', [['general', 'generales', 'settings'], ['appearance', 'Apariencia', 'palette'], ['performance', 'Rendimiento', 'cpu']]],
+  ['LAUNCHER', [['general', 'Generales', 'settings'], ['appearance', 'Apariencia', 'palette'], ['performance', 'Rendimiento', 'cpu']]],
   ['JUEGO', [['java', 'Java y Memoria', 'memory'], ['window', 'Ventana del juego', 'monitor']]],
   ['INFORMACIÓN', [['about', 'Acerca de Trident', 'info'], ['legal', 'Legal y Datos', 'file']]],
   ['AVANZADO', [['danger', 'Zona de peligro', 'alarm']]]
@@ -74,9 +74,9 @@ function openSettings(section) {
   const searchInput = h('input', { type: 'text', placeholder: 'Buscar ajustes', spellcheck: 'false' });
   const foot = h('div', { class: 'settings-foot' },
     h('span', { class: 'muted tiny', text: `Trident Client ${state.info.version}` }),
-    h('button', { class: 'btn btn-dark btn-block', type: 'button', text: 'REGISTRO DE CAMBIOS', onclick: openChangelog }),
+    h('button', { class: 'btn btn-dark btn-block', type: 'button', text: 'Registro de cambios', onclick: openChangelog }),
     h('button', {
-      class: 'btn btn-green btn-block', type: 'button', text: 'EXPORTAR DEPURACIÓN',
+      class: 'btn btn-green btn-block', type: 'button', text: 'Exportar depuración',
       onclick: async () => {
         try { const f = await call(window.launcher.exportDebug()); if (f) toast('Archivo de depuración guardado.'); } catch (e) { toast(e.message, 'error'); }
       }

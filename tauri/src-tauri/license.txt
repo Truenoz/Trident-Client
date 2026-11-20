@@ -12,7 +12,7 @@
 
 6. Si usas Nova Net (amigos y mensajes), se comparte tu nombre de jugador con el servidor para mostrar quién usa Trident Client y para gestionar tus amistades.
 
-7. Trident Client es software libre con licencia MIT. El código está en https://github.com/Truenoz/Nova-Client.
+7. Trident Client es software libre con licencia MIT. El código está en https://github.com/Truenoz/Trident-Client.
 
 8. Eres responsable del uso que hagas del software. No lo uses para infringir las normas de los servidores donde juegues ni los términos de servicio de Minecraft.
 

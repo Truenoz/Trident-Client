@@ -94,7 +94,7 @@ function mountStaticIcons() {
   els.btnManageProfiles.append(icon('grid', 16), 'Perfiles');
   els.btnAddMods.append(icon('plus', 15), 'Agregar');
   $('btn-new-folder').append(icon('folder'), 'Nueva carpeta');
-  $('btn-import').append(icon('import'), 'IMPORTAR');
+  $('btn-import').append(icon('import'), 'Importar');
   $('btn-new-profile').append(icon('plus'), 'Nuevo perfil');
 }
 
@@ -587,9 +587,9 @@ async function loadProfiles() {
 
 const PROFILE_TABS = [
   { id: 'all', label: 'Todos', test: () => true },
-  { id: 'pinned', label: 'Fijado', test: (p) => p.pinned },
-  { id: 'custom', label: 'personalizado', test: (p) => p.origin !== 'pack' },
-  { id: 'pack', label: 'paquete de modificaciones', test: (p) => p.origin === 'pack' }
+  { id: 'pinned', label: 'Fijados', test: (p) => p.pinned },
+  { id: 'custom', label: 'Personalizados', test: (p) => p.origin !== 'pack' },
+  { id: 'pack', label: 'Modpacks', test: (p) => p.origin === 'pack' }
 ];
 
 function renderProfiles() {
@@ -662,7 +662,7 @@ function profileCard(p) {
     : h('button', {
       class: 'btn btn-play btn-block', type: 'button', disabled: !canPlay(),
       onclick: (e) => { e.stopPropagation(); playProfile(p.id); }
-    }, icon('play'), state.account ? 'Play now' : 'Inicia sesión');
+    }, icon('play'), state.account ? 'Jugar' : 'Inicia sesión');
 
   card.append(
     b,

@@ -129,6 +129,22 @@ async fn news_list(app: tauri::AppHandle) -> Res {
     net::news(&app.package_info().version.to_string()).await
 }
 
+/// Imágenes oficiales de cada versión. Se guardan en disco para tenerlas sin conexión.
+#[tauri::command]
+async fn version_art(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> Res {
+    let cache = state.user_dir.join("version-art.json");
+    match net::version_art(&app.package_info().version.to_string()).await {
+        Ok(map) => {
+            let _ = std::fs::write(&cache, map.to_string());
+            Ok(map)
+        }
+        Err(e) => std::fs::read_to_string(&cache)
+            .ok()
+            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+            .ok_or(e),
+    }
+}
+
 #[tauri::command]
 fn shell_external(app: tauri::AppHandle, url: String) -> Res {
     if !url.starts_with("https://") {
@@ -701,6 +717,7 @@ fn main() {
             report_error,
             versions_list,
             news_list,
+            version_art,
             shell_external,
             folder_open,
             data_open,

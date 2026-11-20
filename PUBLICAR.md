@@ -1,6 +1,6 @@
 # Cómo publicar una versión de Trident Client
 
-El repositorio es `Truenoz/Nova-Client`. (El launcher antes se llamaba Nova Client; el mod dentro del juego conserva ese nombre.) Las versiones se publican con el workflow **Compilar Trident Client (Tauri)** (`.github/workflows/tauri-build.yml`) y se distribuyen por GitHub Releases.
+El repositorio es `Truenoz/Trident-Client` (antes `Truenoz/Nova-Client`: GitHub redirige el nombre viejo, así que los launchers ya instalados siguen encontrando las actualizaciones; **no crees nunca otro repositorio llamado `Nova-Client`**, porque eso corta la redirección). El launcher antes se llamaba Nova Client; el mod dentro del juego conserva ese nombre. Las versiones se publican con el workflow **Compilar Trident Client (Tauri)** (`.github/workflows/tauri-build.yml`) y se distribuyen por GitHub Releases.
 
 ## Una sola vez: la clave del actualizador
 
@@ -54,7 +54,7 @@ Cuando subas la etiqueta, los usuarios de la versión Electron reciben la actual
 Siempre instala la última versión publicada (el nombre del archivo no cambia entre versiones):
 
 ```
-https://github.com/Truenoz/Nova-Client/releases/latest/download/Trident-Client-Setup.exe
+https://github.com/Truenoz/Trident-Client/releases/latest/download/Trident-Client-Setup.exe
 ```
 
 ## Qué se conserva al instalar, actualizar y desinstalar

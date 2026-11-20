@@ -76,3 +76,45 @@ pub async fn news(app_version: &str) -> Result<Value, String> {
     }
     Ok(Value::Array(out))
 }
+
+/// Imagen oficial de cada versión según las notas de versión de Mojang:
+/// `{ "1.21.4": "https://launchercontent.mojang.com/v2/images/…jpg", … }`.
+pub async fn version_art(app_version: &str) -> Result<Value, String> {
+    let url = format!("{}/v2/javaPatchNotes.json", NEWS_BASE);
+    let json = get_json(app_version, &url).await?;
+    Ok(art_map(&json))
+}
+
+fn art_map(json: &Value) -> Value {
+    let mut out = serde_json::Map::new();
+    let Ok(base) = reqwest::Url::parse(NEWS_BASE) else { return Value::Object(out) };
+    for e in json["entries"].as_array().into_iter().flatten() {
+        let (Some(ver), Some(img)) = (e["version"].as_str(), e["image"]["url"].as_str()) else { continue };
+        if out.contains_key(ver) {
+            continue;
+        }
+        if let Ok(u) = base.join(img) {
+            out.insert(ver.to_string(), Value::String(u.to_string()));
+        }
+    }
+    Value::Object(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn art_map_builds_absolute_urls() {
+        let json = json!({ "entries": [
+            { "version": "1.21.4", "image": { "url": "/v2/images/1.21.4540x540.jpg" } },
+            { "version": "1.21.4", "image": { "url": "/v2/images/otra.jpg" } },
+            { "version": "26.1", "image": { "url": "/v2/images/26.1540x540.jpg" } },
+            { "version": "sin-imagen" }
+        ]});
+        let m = art_map(&json);
+        assert_eq!(m["1.21.4"], "https://launchercontent.mojang.com/v2/images/1.21.4540x540.jpg");
+        assert_eq!(m["26.1"], "https://launchercontent.mojang.com/v2/images/26.1540x540.jpg");
+        assert!(m.get("sin-imagen").is_none());
+    }
+}

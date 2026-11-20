@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn config_valida() {
-        assert_eq!(repo().as_deref(), Some("Truenoz/Nova-client"));
+        assert_eq!(repo().as_deref(), Some("Truenoz/Trident-Client"));
     }
 
     #[test]

@@ -97,6 +97,16 @@ async function call(promise) {
   return res.data;
 }
 
+// Mensaje de búsqueda fallida apto para mostrar: los errores internos de JS
+// («Cannot read properties…») se reemplazan por algo que el jugador entienda.
+function searchError(e) {
+  const msg = (e && e.message) || '';
+  if (!msg || e instanceof TypeError || /cannot read|undefined|null|is not a function/i.test(msg)) {
+    return 'No se pudo buscar. Revisá tu conexión e intentá de nuevo.';
+  }
+  return `No se pudo buscar: ${msg}`;
+}
+
 // ── Formatos ──
 function timeAgo(ms) {
   if (!ms) return 'Nunca jugado';
@@ -317,8 +327,70 @@ function hueFor(id) {
   return n;
 }
 
+// ── Fondo según la versión de Minecraft ──
+// Cada versión usa su imagen oficial de las notas de versión de Mojang (comando version_art,
+// que la guarda en disco para usarla sin conexión). Mientras carga, o si no hay imagen,
+// queda el paisaje pixelado de hero.svg.
+const MC_NAMES = { 19: 'The Wild Update', 20: 'Trails & Tales' };
+// Drops de 1.21.x: [desde qué parche, nombre].
+const MC_DROPS_121 = [[11, 'Mounts of Mayhem'], [9, 'The Copper Age'], [6, 'Chase the Skies'], [5, 'Spring to Life'], [4, 'The Garden Awakens'], [2, 'Bundles of Bravery'], [0, 'Tricky Trials']];
+
+// Etiqueta de la portada: «1.21 · The Garden Awakens», «Minecraft 26.1»…
+function mcLabel(mc) {
+  const v = String(mc || '').trim();
+  const m = /^1\.(\d+)(?:\.(\d+))?/.exec(v);
+  if (m && +m[1] === 21) return `1.21 · ${MC_DROPS_121.find(([from]) => (+m[2] || 0) >= from)[1]}`;
+  if (m && MC_NAMES[+m[1]]) return `1.${m[1]} · ${MC_NAMES[+m[1]]}`;
+  return v ? `Minecraft ${v}` : '';
+}
+
+const versionArt = { map: null, req: null };
+
+function loadVersionArt() {
+  if (!versionArt.req) {
+    versionArt.req = call(window.launcher.versionArt())
+      .then((m) => { versionArt.map = m || {}; })
+      .catch(() => { versionArt.map = {}; })
+      .then(() => document.querySelectorAll('.banner-era[data-mc]').forEach(paintArt));
+  }
+  return versionArt.req;
+}
+
+// Compara versiones numéricas («1.21.10» > «1.21.9»).
+function cmpVersion(a, b) {
+  const pa = a.split(/[.-]/).map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(/[.-]/).map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) - (pb[i] || 0);
+  return 0;
+}
+
+// Imagen de la versión exacta; si no está, la de la versión más nueva de la misma familia (1.21.x, 26.x).
+function artFor(mc) {
+  const map = versionArt.map || {};
+  const v = String(mc || '').trim();
+  if (map[v]) return map[v];
+  const base = v.replace(/-(pre|rc).*$/i, '');
+  if (map[base]) return map[base];
+  const fam = /^1\.\d+/.test(base) ? base.match(/^1\.\d+/)[0] : (base.match(/^\d+/) || [''])[0];
+  if (!fam) return null;
+  const same = Object.keys(map).filter((k) => k === fam || k.startsWith(fam + '.')).sort(cmpVersion);
+  return same.length ? map[same[same.length - 1]] : null;
+}
+
+function paintArt(el) {
+  const url = artFor(el.dataset.mc);
+  if (!url || el.dataset.art === url) return;
+  el.dataset.art = url;
+  const img = new Image();
+  img.onload = () => { if (el.dataset.art === url) { el.style.backgroundImage = `url("${url}")`; el.classList.add('art-on'); } };
+  img.src = url;
+}
+
+// Portada del perfil con la imagen oficial de su versión de Minecraft.
 function banner(profile, cls) {
-  const el = h('div', { class: `banner ${cls || ''}` });
-  el.style.filter = `hue-rotate(${hueFor(profile.id) - 20}deg) saturate(1.05)`;
+  const label = mcLabel(profile.mc);
+  const el = h('div', { class: `banner banner-era ${cls || ''}`, title: label, dataset: { mc: profile.mc || '' } });
+  if (label) el.append(h('span', { class: 'era-chip', text: label }));
+  if (versionArt.map) paintArt(el); else loadVersionArt();
   return el;
 }

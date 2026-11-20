@@ -191,7 +191,8 @@ async function modsRun() {
     if (my !== mods.req) return;
     mods.total = 0;
     results.textContent = '';
-    results.append(h('div', { class: 'empty-card' }, h('span', { class: 'muted', text: `No se pudo buscar: ${e.message}` })));
+    results.append(h('div', { class: 'empty-card' }, h('span', { class: 'muted', text: searchError(e) }),
+      h('button', { class: 'btn btn-dark btn-small', type: 'button', text: 'Reintentar', onclick: () => modsRun() })));
   }
   modsDrawPager();
 }
