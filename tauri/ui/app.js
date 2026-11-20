@@ -376,7 +376,7 @@ function renderHome() {
   if (p) {
     els.heroKicker.textContent = p.name;
     els.heroTitle.textContent = `Minecraft ${p.mc}`;
-    const parts = [p.loader === 'fabric' && p.nova !== false ? `${p.loaderLabel} + Nova Client` : p.loaderLabel];
+    const parts = [p.loader === 'fabric' && p.nova !== false ? `${p.loaderLabel} + Trident Client` : p.loaderLabel];
     parts.push(state.activeId === p.id && state.running ? 'Jugando ahora' : timeAgo(p.lastPlayed));
     els.heroSub.textContent = parts.join(' · ');
   } else {
@@ -462,8 +462,8 @@ function drawHomeMods() {
 
   if (p.loader === 'fabric' && p.nova !== false) {
     box.append(h('div', { class: 'mod-row builtin', title: 'Viene con el perfil y se actualiza solo' },
-      h('img', { class: 'mod-ico', src: 'nova-mod.png', alt: '', width: 34, height: 34 }),
-      h('div', { class: 'mod-info' }, h('strong', { text: 'Nova Client' }), h('span', { class: 'muted small', text: 'Integrado' })),
+      h('img', { class: 'mod-ico pixel', src: 'logo.png', alt: '', width: 34, height: 34 }),
+      h('div', { class: 'mod-info' }, h('strong', { text: 'Trident Client' }), h('span', { class: 'muted small', text: 'Integrado' })),
       h('span', { class: 'mod-state on', text: 'Activo' })));
   }
   if (!items.length) {
@@ -900,7 +900,7 @@ function openProfileWizard({ profile = null } = {}) {
     draw();
 
     const types = h('div', { class: 'type-cards' },
-      typeCard('nova', 'Con Nova Client', 'Fabric + HUD, amigos, zoom y más.'),
+      typeCard('nova', 'Con Trident Client', 'Fabric + HUD, amigos, zoom y más.'),
       typeCard('vanilla', 'Vanilla', 'Minecraft sin mods.'));
     function typeCard(id, title, text) {
       const el = h('button', { class: `type-card${sel.type === id ? ' selected' : ''}`, type: 'button' }, h('strong', { text: title }), h('span', { class: 'muted small', text }));
@@ -936,7 +936,7 @@ function openProfileWizard({ profile = null } = {}) {
       icon: 'cube',
       wide: true,
       body: [
-        h('p', { class: 'modal-sub', text: `Con Nova · Minecraft ${sel.mc}` }),
+        h('p', { class: 'modal-sub', text: `Con Trident · Minecraft ${sel.mc}` }),
         h('div', { class: 'loader-row' },
           card('fabric', 'Fabric', sel.mc, { selected: true }),
           card('neoforge', 'NeoForge', 'Próximamente', { beta: true, disabled: true, icon: 'cube' }),
@@ -1097,7 +1097,7 @@ function renderUpdate() {
   const pill = els.updatePill;
   pill.classList.remove('clickable', 'pulse');
   pill.onclick = null;
-  if (!u || u.state === 'none' || u.state === 'checking' || u.state === 'error') {
+  if (!u || ['none', 'checking', 'error', 'unsupported'].includes(u.state)) {
     pill.classList.add('hidden');
     return;
   }
@@ -1144,13 +1144,17 @@ window.launcher.onUpdate(async (u) => {
       countdown: '',
       downloading: `Descargando la versión ${u.version || ''}…`,
       ready: u.waitingGame ? `La versión ${u.version || ''} está lista. Se instala al cerrar Minecraft.` : `Instalando la versión ${u.version || ''}…`,
-      error: 'No se pudo buscar actualizaciones (¿sin conexión?).'
+      unsupported: 'Las actualizaciones automáticas solo funcionan en la app instalada (no con «npm run dev»).',
+      error: !u.message ? 'No se pudo buscar actualizaciones (¿sin conexión?).'
+        : /^No se pudo/.test(u.message) ? u.message : `No se pudo buscar actualizaciones: ${u.message}`
     }[u.state];
+    // Si falla la descarga o la instalación, se avisa aunque no esté abierta la pantalla de Ajustes.
+    if (u.state === 'error' && /^No se pudo (descargar|instalar)/.test(u.message || '')) toast(u.message, 'error');
     if (text && typeof setUpdateText === 'function') setUpdateText(text);
     if ((u.state === 'available' || u.state === 'countdown') && upd.notified !== u.version) { upd.notified = u.version; notify(`Actualización ${u.version || ''} disponible.`); }
   } else if (u.kind === 'mods') {
-    if (typeof setUpdateText === 'function') setUpdateText(`Nova Client actualizado (${u.tag}).`);
-    notify(`Nova Client actualizado (${u.tag}).`);
+    if (typeof setUpdateText === 'function') setUpdateText(`Mod de Trident actualizado (${u.tag}).`);
+    notify(`Mod de Trident actualizado (${u.tag}).`);
     state.info = await call(window.launcher.appInfo());
   }
 });

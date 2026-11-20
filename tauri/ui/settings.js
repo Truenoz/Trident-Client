@@ -12,6 +12,12 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.3.2', [
+    'Cada perfil muestra la imagen oficial de su versión de Minecraft.',
+    'El mod integrado ahora se muestra como Trident Client en todo el launcher.',
+    'Textos en español y más prolijos, mejor uso con teclado y ventana chica.',
+    'Si una actualización falla, el motivo aparece en Ajustes → Acerca de y en Registro.'
+  ]],
   ['1.3.0', [
     'Nuevo nombre: el launcher ahora se llama Trident Client, con logo nuevo. El mod dentro del juego sigue siendo Nova Client.',
     'Se actualiza solo desde Nova Client: perfiles, mundos, ajustes y sesión se conservan.'
@@ -190,7 +196,7 @@ const SECTIONS = {
   about: {
     desc: 'Versión e información de esta instalación.',
     build: () => {
-      const upd = h('p', { class: 'muted small', text: 'El launcher y Nova Client se actualizan solos.' });
+      const upd = h('p', { class: 'muted small', text: 'El launcher y el mod de Trident se actualizan solos.' });
       updateTextEl = upd;
       const btn = h('button', { class: 'btn btn-dark', type: 'button', text: 'Buscar ahora' });
       btn.addEventListener('click', async () => {
@@ -206,7 +212,7 @@ const SECTIONS = {
       const i = state.info;
       return h('div', { class: 'settings-list' },
         setting('Trident Client', `Versión ${i.version} · ${i.engine}`, null),
-        setting('Mods de Nova disponibles', i.novaVersions.length ? i.novaVersions.join(', ') : 'Ninguno todavía: se bajan solos la primera vez que jugás cada versión.', null),
+        setting('Mods de Trident disponibles', i.novaVersions.length ? i.novaVersions.join(', ') : 'Ninguno todavía: se bajan solos la primera vez que jugás cada versión.', null),
         setting('Actualizaciones', null, btn), upd,
         setting('Carpeta del juego', i.gameDir, h('button', { class: 'btn btn-dark', type: 'button', text: 'Abrir', onclick: () => window.launcher.openFolder() })));
     }
@@ -231,7 +237,7 @@ const SECTIONS = {
       }));
       return h('div', { class: 'settings-list' },
         act('Cerrar sesión', 'Quita tu cuenta de Microsoft de este launcher.', 'Cerrar sesión', async () => { await doLogout(); }, 'Vas a tener que volver a iniciar sesión para jugar.'),
-        act('Borrar caché de mods de Nova', 'Se vuelven a bajar en la próxima actualización.', 'Borrar caché', () => call(window.launcher.clearCache()), 'Se borran los mods de Nova descargados.'),
+        act('Borrar caché de mods de Trident', 'Se vuelven a bajar en la próxima actualización.', 'Borrar caché', () => call(window.launcher.clearCache()), 'Se borran los mods de Trident descargados.'),
         act('Borrar Java descargado', 'Trident baja Java de nuevo al jugar.', 'Borrar Java', () => call(window.launcher.clearJava()), 'Se borra el Java que Trident descargó.'),
         act('Restablecer ajustes', 'Tus perfiles y mundos no se tocan.', 'Restablecer', async () => { state.settings = await call(window.launcher.resetSettings()); applyAppearance(state.settings); settingsModal && openSettings('general'); }, 'Los ajustes vuelven a sus valores originales.'));
     }

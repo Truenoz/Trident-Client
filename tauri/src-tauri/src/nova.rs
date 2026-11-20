@@ -87,7 +87,7 @@ async fn take_from_release(cache: &Path, release: &Value, mc: &str, log: &(dyn F
     let asset = match asset {
         Some(a) => a,
         None => {
-            log(format!("[Nova Client] El release «{ROLLING_TAG}» no tiene {wanted}."));
+            log(format!("[Trident] El release «{ROLLING_TAG}» no tiene {wanted}."));
             return Ok(false);
         }
     };
@@ -106,7 +106,7 @@ async fn take_from_release(cache: &Path, release: &Value, mc: &str, log: &(dyn F
     std::fs::rename(&tmp, &jar).map_err(|e| e.to_string())?;
     index["jars"][mc] = json!({ "id": asset["id"], "tag": release["tag_name"], "rolling": true });
     write_index(cache, &index);
-    log(format!("[Nova Client] {mc}: jar descargado del release «{ROLLING_TAG}»."));
+    log(format!("[Trident] {mc}: jar descargado del release «{ROLLING_TAG}»."));
     Ok(true)
 }
 
@@ -122,21 +122,21 @@ pub async fn ensure_jar(user_dir: &Path, mc: &str, log: &(dyn Fn(String) + Send 
             // Sin esto el juego arrancaba solo con Fabric sin decir por qué.
             match repo() {
                 Some(r) => log(format!(
-                    "[Nova Client] El repositorio {r} no tiene el release «{ROLLING_TAG}» (o es privado): no hay de dónde bajar el mod. Publicá los jars con «npm run publish:mods»."
+                    "[Trident] El repositorio {r} no tiene el release «{ROLLING_TAG}» (o es privado): no hay de dónde bajar el mod. Publicá los jars con «npm run publish:mods»."
                 )),
-                None => log("[Nova Client] Falta «githubRepo» en nova.config.json: no hay de dónde bajar el mod.".to_string()),
+                None => log("[Trident] Falta «githubRepo» en nova.config.json: no hay de dónde bajar el mod.".to_string()),
             }
             return Ok(have());
         }
         Err(e) => {
             if e.starts_with("HTTP") {
-                log(format!("[Nova Client] No se pudo consultar el release ({e}); se usa lo que hay."));
+                log(format!("[Trident] No se pudo consultar el release ({e}); se usa lo que hay."));
             }
             return Ok(have()); // sin conexión
         }
     };
     if let Err(e) = take_from_release(&cache, &release, mc, log).await {
-        log(format!("[Nova Client] {e} Se usa lo que hay."));
+        log(format!("[Trident] {e} Se usa lo que hay."));
     }
     Ok(have())
 }
@@ -227,7 +227,7 @@ pub fn install_jar(src: &Path, dest: &Path, log: &(dyn Fn(String) + Send + Sync)
         Ok(Some(patched)) => std::fs::write(dest, patched).map_err(|e| e.to_string()),
         Ok(None) => std::fs::write(dest, bytes).map_err(|e| e.to_string()),
         Err(e) => {
-            log(format!("[Nova Client] No se pudo ajustar la dependencia de Fabric API: {e}"));
+            log(format!("[Trident] No se pudo ajustar la dependencia de Fabric API: {e}"));
             std::fs::write(dest, bytes).map_err(|e| e.to_string())
         }
     }

@@ -116,7 +116,7 @@ function renderDetailLeft() {
     artWrap,
     h('div', { class: 'detail-tags' },
       h('span', { class: 'tag tag-ok', text: p.origin === 'pack' ? 'Modpack' : 'Personalizado' }),
-      p.nova ? h('span', { class: 'tag tag-nova', text: 'Nova Client' }) : null),
+      p.nova ? h('span', { class: 'tag tag-nova', text: 'Trident Client' }) : null),
     h('div', { class: 'muted small', text: `${p.loaderLabel} ${p.mc}` }),
     play,
     progress,
@@ -152,7 +152,7 @@ function perfCard(p) {
   const perf = detail.perf;
   const head = h('div', { class: 'perf-head' }, h('img', { class: 'pixel', src: 'logo.png', alt: '', width: 28, height: 28 }), h('strong', { text: 'Rendimiento' }));
   if (p.loader !== 'fabric') {
-    card.append(head, h('p', { class: 'muted small', text: 'Los mods de rendimiento (Sodium, Lithium…) necesitan Fabric. Cambiá el perfil a «Con Nova Client» para usarlos.' }));
+    card.append(head, h('p', { class: 'muted small', text: 'Los mods de rendimiento (Sodium, Lithium…) necesitan Fabric. Cambiá el perfil a «Con Trident Client» para usarlos.' }));
     return card;
   }
   if (!perf) {
@@ -591,8 +591,8 @@ function renderSettingsTab(panel, p) {
       h('label', { class: 'field' }, h('span', { class: 'field-label', text: 'Argumentos extra de Java' }), jvm)),
     h('div', { class: 'card wide' },
       h('label', { class: 'switch-line' },
-        toggle(p.nova, (v) => save({ nova: v }), 'Nova Client'),
-        h('span', {}, h('strong', { text: 'Jugar con Nova Client' }), h('span', { class: 'muted small block', text: fabricOnly ? 'HUD, amigos, zoom y más dentro del juego.' : 'Necesita un perfil de Fabric.' }))),
+        toggle(p.nova, (v) => save({ nova: v }), 'Trident Client'),
+        h('span', {}, h('strong', { text: 'Jugar con Trident Client' }), h('span', { class: 'muted small block', text: fabricOnly ? 'HUD, amigos, zoom y más dentro del juego.' : 'Necesita un perfil de Fabric.' }))),
       h('label', { class: 'switch-line' },
         toggle(p.fabricApi !== false, (v) => save({ fabricApi: v }), 'Fabric API'),
         h('span', {}, h('strong', { text: 'Instalar Fabric API' }), h('span', { class: 'muted small block', text: 'La mayoría de los mods de Fabric la necesitan.' })))),

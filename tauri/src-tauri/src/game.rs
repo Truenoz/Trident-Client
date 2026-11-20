@@ -182,16 +182,16 @@ async fn prepare_profile(app: &AppHandle, profile: &Value, inst: &Path, root: &P
     remove_nova_jars(&mods_dir);
     let mut with_nova = false;
     if profile["nova"].as_bool().unwrap_or(false) {
-        status(app, "preparing", "Buscando Nova Client…", None);
+        status(app, "preparing", "Buscando Trident Client…", None);
         let user_dir = app.state::<AppState>().user_dir.clone();
         let logger = |m: String| log(app, m);
         match nova::ensure_jar(&user_dir, &mc, &logger).await {
             Ok(Some(jar)) => match nova::install_jar(&jar, &mods_dir.join("nova-client.jar"), &logger) {
                 Ok(()) => with_nova = true,
-                Err(e) => log(app, format!("[Nova Client] No se pudo copiar el mod: {e}")),
+                Err(e) => log(app, format!("[Trident] No se pudo copiar el mod: {e}")),
             },
-            Ok(None) => log(app, format!("[Nova Client] No hay Nova Client para Minecraft {mc}. Se inicia solo con Fabric.")),
-            Err(e) => log(app, format!("[Nova Client] Error al preparar el mod: {e}")),
+            Ok(None) => log(app, format!("[Trident] No hay mod de Trident para Minecraft {mc}. Se inicia solo con Fabric.")),
+            Err(e) => log(app, format!("[Trident] Error al preparar el mod: {e}")),
         }
     }
     Ok((custom, with_nova))
@@ -346,7 +346,7 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     let profile = profiles::get(&user_dir, &game_dir, profile_id)?;
     let mc = profile["mc"].as_str().ok_or("El perfil no tiene versión de Minecraft.")?.to_string();
     if !net::is_allowed(&mc) {
-        return Err(format!("La versión {mc} no está disponible en Nova Client"));
+        return Err(format!("La versión {mc} no está disponible en Trident Client"));
     }
     let settings = settings::write(&user_dir, &json!({ "lastProfile": profile_id, "lastVersion": mc }))?;
     let inst = PathBuf::from(profile["dir"].as_str().ok_or("El perfil no tiene carpeta.")?);
@@ -464,7 +464,7 @@ fn show_presence(app: &AppHandle, settings: &serde_json::Map<String, Value>, mc:
         .unwrap_or(0);
     let mut activity = json!({
         "details": format!("Minecraft {mc}"),
-        "state": if with_nova { "Jugando con Nova Client" } else { "Jugando Minecraft" },
+        "state": if with_nova { "Jugando con Trident Client" } else { "Jugando Minecraft" },
         "timestamps": { "start": started },
         "instance": false
     });

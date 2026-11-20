@@ -456,7 +456,7 @@ async fn debug_export(app: tauri::AppHandle) -> Res {
             sys.total_memory() / 1024 / 1024 / 1024
         ),
         format!("Carpeta del juego: {}", st.game_dir.to_string_lossy()),
-        format!("Mods de Nova compilados: {}", if versions.is_empty() { "ninguno".to_string() } else { versions.join(", ") }),
+        format!("Mods de Trident compilados: {}", if versions.is_empty() { "ninguno".to_string() } else { versions.join(", ") }),
     ]
     .join("\n");
     let log_text = st.rt.log_buf.lock().map(|b| b.join("\n")).unwrap_or_default();

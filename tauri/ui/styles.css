@@ -39,7 +39,7 @@ h2 { margin: 0 0 16px; font-size: 22px; }
   padding: 5px 14px; border-radius: 8px; border: 2px solid #3a3a46;
   background: #17171c; font-weight: 800; font-size: 12px; letter-spacing: .5px; text-transform: uppercase;
 }
-.tag-nova { border-color: #b8651a; background: #3a2007; color: #ffb25e; }
+.tag-nova { border-color: rgba(var(--accent-rgb), .7); background: rgba(var(--accent-rgb), .14); color: #ff8d94; }
 .tag-ok { border-color: #2c8a47; background: #123420; color: #7dffa4; }
 
 .btn-icon {

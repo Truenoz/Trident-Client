@@ -217,6 +217,11 @@ fn emit(app: &AppHandle, payload: Value) {
     let _ = app.emit("update:status", payload);
 }
 
+/// Deja constancia en «Registro» para poder ver qué pasó con la actualización.
+fn note(app: &AppHandle, msg: impl AsRef<str>) {
+    game::log(app, format!("[Actualizador] {}", msg.as_ref()));
+}
+
 fn running(app: &AppHandle) -> bool {
     game::is_running(app).is_some()
 }
@@ -267,6 +272,7 @@ async fn check_launcher(app: &AppHandle) -> Result<&'static str, String> {
     }
     let url = endpoint().ok_or("Repositorio de GitHub no configurado.")?;
     run(app, with_flow(app, |f| f.checking()).unwrap_or(Step::Nothing));
+    let current = app.package_info().version.to_string();
     let found = async {
         app.updater_builder()
             .endpoints(vec![url])
@@ -282,13 +288,18 @@ async fn check_launcher(app: &AppHandle) -> Result<&'static str, String> {
     match found {
         Ok(Some(update)) => {
             let version = update.version.clone();
+            note(app, format!("Versión instalada {current}; hay una nueva: {version}."));
             if let Ok(mut u) = live(app).update.lock() {
                 *u = Some(update);
             }
             run(app, with_flow(app, |f| f.found(&version, running(app))).unwrap_or(Step::Nothing));
         }
-        Ok(None) => run(app, with_flow(app, |f| f.nothing_new()).unwrap_or(Step::Nothing)),
+        Ok(None) => {
+            note(app, format!("Versión instalada {current}: es la última."));
+            run(app, with_flow(app, |f| f.nothing_new()).unwrap_or(Step::Nothing));
+        }
         Err(e) => {
+            note(app, format!("No se pudo buscar ({e})."));
             run(app, with_flow(app, |f| f.check_failed(&e)).unwrap_or(Step::Nothing));
             return Err(e);
         }
@@ -337,7 +348,8 @@ async fn download(app: &AppHandle) {
             run(app, with_flow(app, |f| f.downloaded(running(app))).unwrap_or(Step::Nothing));
         }
         Err(e) => {
-            emit(app, launcher("error", json!({ "message": e.to_string() })));
+            note(app, format!("No se pudo descargar ({e})."));
+            emit(app, launcher("error", json!({ "message": format!("No se pudo descargar la actualización: {e}") })));
             if let Some(v) = with_flow(app, |f| f.download_failed()) {
                 emit(app, v);
             }
@@ -358,6 +370,7 @@ fn install(app: &AppHandle) {
         let bytes = live(&app).bytes.lock().ok().and_then(|b| b.clone());
         if let (Some(update), Some(bytes)) = (update, bytes) {
             if let Err(e) = update.install(bytes) {
+                note(&app, format!("No se pudo instalar ({e})."));
                 emit(&app, launcher("error", json!({ "message": format!("No se pudo instalar la actualización: {e}") })));
             }
         }
@@ -371,7 +384,7 @@ fn install(app: &AppHandle) {
 pub async fn check(app: &AppHandle, manual: bool) -> Value {
     let launcher_state = check_launcher(app).await.unwrap_or("error");
     if manual && launcher_state == "unsupported" {
-        emit(app, launcher("none", json!({})));
+        emit(app, launcher("unsupported", json!({})));
     }
     let user_dir = app.state::<AppState>().user_dir.clone();
     let app2 = app.clone();

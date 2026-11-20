@@ -153,7 +153,7 @@ pub fn ensure_default(user_dir: &Path, settings: &Map<String, Value>) -> Result<
         .to_string();
     let want_nova = settings.get("novaClient").and_then(|v| v.as_bool()).unwrap_or(true);
     let loader = if want_nova { "fabric" } else { "vanilla" };
-    let name = format!("Nova {}", last);
+    let name = format!("Trident {}", last);
     s.arr_mut("profiles").push(json!({
         "id": new_id(),
         "name": name,
