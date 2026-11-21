@@ -1,7 +1,3 @@
-/* Trident Client — pantalla de mantenimiento del launcher.
-   Mismo diseño que la de la web (tridentclient.com), con fondo negro y los colores del launcher.
-   La carga maintenance.js; no hace falta tocar index.html ni styles.css. */
-
 @font-face {
   font-family: "Trident Oswald";
   font-style: normal; font-weight: 200 700; font-display: swap;
@@ -95,7 +91,6 @@
 .tcm__in.d4 { animation-delay: 280ms; } .tcm__in.d5 { animation-delay: 350ms; }
 @keyframes tcm-in { to { opacity: 1; transform: none; } }
 
-/* Ventanas bajas (el launcher permite hasta 1100×700) */
 @media (max-height: 800px) {
   .tcm__wrap { padding-top: 14px; padding-bottom: 14px; }
   .tcm__kicker { margin-bottom: 8px; } .tcm__title { margin-bottom: 12px; }

@@ -1,9 +1,3 @@
-// Detección de skins de Minecraft Java.
-//
-// El backend baja la skin (PNG) y se la pasa a la interfaz como data URL. Acepta un UUID o un nombre de jugador.
-// Orden de búsqueda: (1) datos de la propia sesión, (2) servidor de sesiones de Mojang,
-// (3) mc-heads.net como respaldo, (4) la última skin guardada en disco (funciona sin internet).
-
 use crate::dl;
 use base64::Engine;
 use serde_json::{json, Value};
@@ -58,7 +52,6 @@ fn api_base(default: &str, var: &str) -> String {
     default.to_string()
 }
 
-/// JSON o None si no existe (204 / 404).
 async fn get_json_opt(url: &str) -> Result<Option<Value>, String> {
     let res = dl::client()
         .get(url)
@@ -77,11 +70,10 @@ async fn get_json_opt(url: &str) -> Result<Option<Value>, String> {
     res.json::<Value>().await.map(Some).map_err(|e| e.to_string())
 }
 
-/// Descarga un PNG de un host permitido y lo devuelve como data URL.
 async fn get_png(url: &str, host_ok: impl Fn(&str) -> bool) -> Result<String, String> {
     let mut u = reqwest::Url::parse(url).map_err(|_| "Origen de skin no permitido".to_string())?;
     if u.scheme() == "http" && !cfg!(test) {
-        let _ = u.set_scheme("https"); // textures.minecraft.net publica http:// en los perfiles
+        let _ = u.set_scheme("https");
     }
     let host = u.host_str().unwrap_or("").to_string();
     if !(u.scheme() == "https" || cfg!(test)) || !host_ok(&host) {
@@ -116,7 +108,6 @@ fn mcheads_host(h: &str) -> bool {
     h.eq_ignore_ascii_case("mc-heads.net") || (cfg!(test) && h == "127.0.0.1")
 }
 
-/// Nombre → (uuid, nombre) o None si no existe.
 async fn lookup_name(name: &str) -> Result<Option<(String, String)>, String> {
     let enc = reqwest::Url::parse_with_params("http://x/", &[("k", name)])
         .map(|u| u.query().unwrap_or("").trim_start_matches("k=").to_string())
@@ -129,7 +120,7 @@ async fn lookup_name(name: &str) -> Result<Option<(String, String)>, String> {
             }
         }
         Ok(None) => return Ok(None),
-        Err(_) => {} // se prueba el endpoint anterior
+        Err(_) => {}
     }
     Ok(get_json_opt(&format!("{}/users/profiles/minecraft/{enc}", api_base("https://api.mojang.com", "NOVA_MOJANG")))
         .await?
@@ -142,7 +133,6 @@ struct Textures {
     model: &'static str,
 }
 
-/// UUID → nombre, URL de la skin y modelo, desde el servidor de sesiones.
 async fn session_textures(uuid: &str) -> Result<Option<Textures>, String> {
     let url = format!("{}/session/minecraft/profile/{uuid}", api_base("https://sessionserver.mojang.com", "NOVA_SESSION"));
     let Some(p) = get_json_opt(&url).await? else { return Ok(None) };
@@ -174,15 +164,12 @@ fn write_disk(dir: &Path, uuid: &str, v: &Value) {
     let _ = std::fs::write(cache_path(dir, uuid), v.to_string());
 }
 
-/// Datos ya conocidos de la sesión: nombre, URL de la skin activa y modelo.
 pub struct Known {
     pub name: String,
     pub skin_url: Option<String>,
     pub slim: bool,
 }
 
-/// `query` es un UUID (con o sin guiones) o un nombre de jugador.
-/// Devuelve { name, uuid, model: "slim" | "classic" | "auto", skin: dataURL, source }.
 pub async fn get_skin(cache_dir: &Path, query: &str, force: bool, known: Option<&Known>) -> Result<Value, String> {
     let query = query.trim();
     let mut uuid = if is_uuid(query) { Some(undash(query)) } else { None };
@@ -201,7 +188,7 @@ pub async fn get_skin(cache_dir: &Path, query: &str, force: bool, known: Option<
                 name = n;
             }
             other => {
-                // Sin red o sin ese jugador: se usa lo que ya se tenga en memoria.
+
                 let stale = memory().lock().ok().and_then(|m| {
                     m.values().map(|(_, v)| v.clone()).find(|v| v["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(query)))
                 });
@@ -223,7 +210,6 @@ pub async fn get_skin(cache_dir: &Path, query: &str, force: bool, known: Option<
     let mut result = json!({ "name": name, "uuid": uuid, "model": "auto", "skin": null, "source": "" });
     let mut errors: Vec<String> = Vec::new();
 
-    // 1) Datos de la sesión.
     if let Some(url) = known.and_then(|k| k.skin_url.as_deref()) {
         match get_png(url, mojang_textures_host).await {
             Ok(png) => {
@@ -235,7 +221,6 @@ pub async fn get_skin(cache_dir: &Path, query: &str, force: bool, known: Option<
         }
     }
 
-    // 2) Servidor de sesiones de Mojang.
     if result["skin"].is_null() {
         match session_textures(&uuid).await {
             Ok(Some(t)) => {
@@ -258,7 +243,6 @@ pub async fn get_skin(cache_dir: &Path, query: &str, force: bool, known: Option<
         }
     }
 
-    // 3) Respaldo: mc-heads.net (la skin real o la de Steve/Alex por defecto; el modelo se deduce de los píxeles).
     if result["skin"].is_null() {
         match get_png(&format!("{}/skin/{uuid}", api_base("https://mc-heads.net", "NOVA_MCHEADS")), mcheads_host).await {
             Ok(png) => {
@@ -270,7 +254,6 @@ pub async fn get_skin(cache_dir: &Path, query: &str, force: bool, known: Option<
         }
     }
 
-    // 4) Última skin guardada.
     if result["skin"].is_null() {
         if let Some(mut disk) = read_disk(cache_dir, &uuid).filter(|d| d["skin"].is_string()) {
             disk["source"] = json!("caché");
@@ -358,11 +341,9 @@ mod tests {
         assert!(r["skin"].as_str().unwrap().starts_with("data:image/png;base64,"));
         assert!(cache_path(&dir, "069a79f444e94726a5befca90e38aaf5").exists());
 
-        // Un jugador que no existe.
         assert!(get_skin(&dir, "NoExiste", true, None).await.unwrap_err().contains("No se encontró"));
         assert!(get_skin(&dir, "nombre inválido!", true, None).await.is_err());
 
-        // Con los datos de la sesión no hace falta preguntar nada más.
         let known = Known { name: "Steve".into(), skin_url: Some(format!("{base}/tex/abc")), slim: false };
         let r = get_skin(&dir, "069a79f4-44e9-4726-a5be-fca90e38aaf5", true, Some(&known)).await.unwrap();
         assert_eq!(r["source"], "sesión");

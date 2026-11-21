@@ -1,19 +1,15 @@
-// Fabric: perfil del cargador (meta.fabricmc.net) y Fabric API (Modrinth). Igual que ensureFabric / ensureFabricApi.
-
 use crate::{dl, launcher::Progress};
 use sha2::{Digest, Sha512};
 use std::path::Path;
 
-/// Instala (si hace falta) el perfil de Fabric para esa versión y devuelve su id (`fabric-loader-<loader>-<mc>`).
 pub async fn ensure_fabric(root: &Path, mc: &str, progress: Progress<'_>) -> Result<String, String> {
     match install_fabric(root, mc, progress).await {
         Ok(id) => Ok(id),
-        // Sin internet: usar un Fabric ya instalado, si lo hay.
+
         Err(e) => installed_fabric(root, mc).ok_or(e),
     }
 }
 
-/// Fabric ya instalado para esa versión (el más nuevo), si lo hay.
 fn installed_fabric(root: &Path, mc: &str) -> Option<String> {
     let suffix = format!("-{mc}");
     let mut old: Vec<String> = std::fs::read_dir(root.join("versions"))
@@ -28,7 +24,7 @@ fn installed_fabric(root: &Path, mc: &str) -> Option<String> {
 }
 
 async fn install_fabric(root: &Path, mc: &str, progress: Progress<'_>) -> Result<String, String> {
-    // Consultado hace poco: no se vuelve a preguntar a Fabric en cada «Jugar».
+
     let key = format!("fabric:{mc}");
     if dl::checked_recently(&key, 24) {
         if let Some(id) = installed_fabric(root, mc) {
@@ -72,7 +68,6 @@ fn existing_api(mods_dir: &Path) -> Vec<std::path::PathBuf> {
         .unwrap_or_default()
 }
 
-/// Un jar a medio bajar o dañado hace que Fabric diga «falta fabric-api» aunque el archivo esté: se verifica.
 fn intact(file: &Path, sha512: Option<&str>) -> bool {
     let ok_zip = std::fs::File::open(file)
         .ok()
@@ -95,7 +90,7 @@ pub async fn ensure_fabric_api(mc: &str, mods_dir: &Path, progress: Progress<'_>
             if existing_api(mods_dir).is_empty() {
                 Err(e)
             } else {
-                Ok(()) // sin internet pero ya descargada: seguir
+                Ok(())
             }
         }
     }
@@ -127,7 +122,7 @@ async fn install_fabric_api(mc: &str, mods_dir: &Path, progress: Progress<'_>) -
     let filename = file["filename"].as_str().ok_or("Modrinth no informó el nombre del archivo.")?;
     let furl = file["url"].as_str().ok_or("Modrinth no informó la URL del archivo.")?;
     let sha512 = file["hashes"]["sha512"].as_str();
-    // Solo el nombre: nunca una ruta.
+
     let dest = mods_dir.join(Path::new(filename).file_name().ok_or("Nombre de archivo no válido.")?);
 
     if !dest.exists() || !intact(&dest, sha512) {
@@ -149,4 +144,3 @@ async fn install_fabric_api(mc: &str, mods_dir: &Path, progress: Progress<'_>) -
     dl::mark_checked(&key);
     Ok(())
 }
-

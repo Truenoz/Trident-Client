@@ -62,7 +62,6 @@ h2 { margin: 0 0 16px; font-size: 22px; }
   color: #ffb4b4; font-size: 13px; line-height: 1.45; user-select: text;
 }
 
-/* ── Botones ── */
 .btn {
   padding: 11px 18px; border: 1px solid transparent; border-radius: 12px;
   font: inherit; font-size: 13px; font-weight: 800; color: var(--text); cursor: pointer;
@@ -92,7 +91,6 @@ h2 { margin: 0 0 16px; font-size: 22px; }
 .btn-stop:hover { filter: brightness(1.08); }
 .stop-ico { width: 13px; height: 13px; background: #fff; border-radius: 2px; }
 
-/* ── Versiones ── */
 .search {
   width: 100%; margin-bottom: 14px; padding: 12px 14px; border-radius: 12px;
   border: 1px solid #2c2c35; background: var(--panel); color: var(--text); font: inherit; font-size: 14px; outline: none;
@@ -111,7 +109,6 @@ h2 { margin: 0 0 16px; font-size: 22px; }
 .ver-card span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
 .version-empty { grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--muted); }
 
-/* ── Ajustes y registro ── */
 .card { max-width: 600px; margin-bottom: 14px; padding: 18px 20px; border-radius: var(--radius); border: 1px solid #26262e; background: var(--panel); }
 .card .muted { margin: 6px 0 0; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -133,7 +130,6 @@ input[type="range"] { width: 100%; margin: 14px 0 4px; accent-color: var(--orang
 ::-webkit-scrollbar { width: 10px; }
 ::-webkit-scrollbar-thumb { background: #2a2a33; border-radius: 10px; border: 2px solid var(--bg); }
 
-/* ═════════════ Perfiles, detalle, ventanas ═════════════ */
 .ico { display: inline-grid; place-items: center; width: 1.2em; height: 1.2em; flex-shrink: 0; }
 .ico svg { width: 100%; height: 100%; }
 .grow { flex: 1; min-width: 0; }
@@ -170,7 +166,6 @@ input[type="range"] { width: 100%; margin: 14px 0 4px; accent-color: var(--orang
 .empty-card { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 22px; border: 1px dashed #2c2c35; border-radius: 12px; text-align: center; }
 .empty-card.big { flex-direction: column; padding: 48px; }
 
-/* perfiles */
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }
 .seg { display: inline-flex; gap: 6px; padding: 5px; border-radius: 14px; border: 1px solid #26262e; background: var(--panel); }
 .seg.full { display: flex; }
@@ -211,7 +206,6 @@ input[type="range"] { width: 100%; margin: 14px 0 4px; accent-color: var(--orang
 .card-actions { display: flex; gap: 10px; margin: 4px 0; }
 .card-actions .btn-play { flex: 1; }
 
-/* menús emergentes */
 .pop-menu { position: fixed; z-index: 90; min-width: 250px; max-width: 360px; padding: 8px; border-radius: 14px; border: 1px solid #2c2c35; background: #151519; box-shadow: 0 18px 50px rgba(0,0,0,.6); }
 .pop-head { display: flex; align-items: center; gap: 12px; padding: 8px 10px 12px; border-bottom: 1px solid #26262e; margin-bottom: 6px; }
 .pop-head img { border-radius: 8px; }
@@ -221,7 +215,6 @@ input[type="range"] { width: 100%; margin: 14px 0 4px; accent-color: var(--orang
 .pop-item.danger { color: #ff7b7b; }
 .pop-sep { height: 1px; margin: 6px 4px; background: #26262e; }
 
-/* ventanas */
 .modal-overlay { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.72); backdrop-filter: blur(4px); animation: fade .15s ease; }
 .modal-box { display: flex; flex-direction: column; width: min(560px, 100%); max-height: calc(100vh - 60px); border-radius: 18px; border: 1px solid #2c2c35; background: #151518; box-shadow: 0 30px 80px rgba(0,0,0,.7); }
 .modal-box.wide { width: min(980px, 100%); }
@@ -252,7 +245,6 @@ select.input { cursor: pointer; }
 .danger-card { border-color: #4a2226; }
 .switch-line { display: flex; align-items: center; gap: 14px; padding: 8px 0; cursor: pointer; }
 
-/* interruptor */
 .sw { position: relative; display: inline-block; flex-shrink: 0; width: 46px; height: 26px; cursor: pointer; }
 .sw-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; z-index: 1; }
 .sw-track { position: absolute; inset: 0; border-radius: 99px; background: #3a3a44; transition: background .15s; }
@@ -285,7 +277,6 @@ select.input { cursor: pointer; }
 @keyframes toast-slide { 0% { left: -35%; } 100% { left: 100%; } }
 @media (prefers-reduced-motion: reduce) { .toast-card { transition: none; } .toast-bar i { animation: none; width: 100%; } }
 
-/* asistente de perfil */
 .version-grid { max-height: 260px; overflow-y: auto; padding: 2px; }
 .type-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .type-card { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; border: 2px solid #2c2c35; background: var(--panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
@@ -307,7 +298,6 @@ select.input { cursor: pointer; }
 .pick-row > div { display: flex; flex-direction: column; }
 .pick-row.selected { border-color: var(--orange); }
 
-/* detalle de perfil */
 .detail-head { display: flex; align-items: center; gap: 18px; margin-bottom: 16px; }
 .detail-head h2 { margin: 0; font-size: 26px; }
 .detail-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; align-items: start; }
@@ -355,7 +345,7 @@ select.input { cursor: pointer; }
 .tag-pill { display: inline-block; padding: 5px 12px; border-radius: 8px; border: 1px solid #2c8a47; background: #123420; color: #cfeedd; font-weight: 800; }
 .c-source { display: flex; align-items: center; gap: 8px; color: #cfcfd8; }
 .c-source .ico { color: #34d964; }
-.c-source .src-logo { width: 16px; height: 16px; flex: none; object-fit: contain; position: relative; top: 1px; }   /* centrado óptico con el texto */
+.c-source .src-logo { width: 16px; height: 16px; flex: none; object-fit: contain; position: relative; top: 1px; }
 .c-version { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .c-actions { display: flex; align-items: center; gap: 6px; }
 .btn-del { width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 9px; background: #e5484d; color: #fff; cursor: pointer; }
@@ -373,7 +363,6 @@ select.input { cursor: pointer; }
 .share-view { display: flex; flex-direction: column; gap: 12px; }
 .share-view .content-toolbar { justify-content: flex-start; margin: 0; }
 
-/* configuración */
 .modal-box.settings-box { height: min(720px, calc(100vh - 60px)); }
 .settings-box .modal-body { padding: 0; overflow: hidden; }
 .settings-grid { display: grid; grid-template-columns: 250px minmax(0, 1fr); height: 100%; }
@@ -397,7 +386,6 @@ select.input { cursor: pointer; }
 .settings-foot { flex-shrink: 0; }
 .nav-item { flex-shrink: 0; }
 
-/* ═══════════ Pantalla de carga ═══════════ */
 .boot {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -416,7 +404,6 @@ select.input { cursor: pointer; }
 @keyframes boot-spin { to { transform: rotate(360deg); } }
 @keyframes boot-pulse { 0%, 100% { opacity: .92; } 50% { opacity: 1; filter: drop-shadow(0 0 18px rgba(80, 160, 255, .4)); } }
 
-/* ═══════════ Panel social ═══════════ */
 .social { position: fixed; right: 16px; bottom: 16px; z-index: 60; width: 346px; display: flex; flex-direction: column; gap: 8px; user-select: none; }
 .sp {
   display: flex; flex-direction: column; height: min(560px, calc(100vh - 34px - 86px));
@@ -492,7 +479,6 @@ select.input { cursor: pointer; }
 .sbar-add { width: 48px; height: 100%; display: grid; place-items: center; border: 0; border-radius: 0; background: transparent; color: #c4c4cb; cursor: pointer; }
 .sbar-add:hover { color: #fff; }
 
-/* ═══════════ Modificaciones (estilo Dawn) ═══════════ */
 .mods-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
 .mods-head h2 { margin: 0; font-size: 34px; }
 .mods-head-right { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -616,7 +602,6 @@ select.input { cursor: pointer; }
   .mods-search { width: 220px; }
 }
 
-/* ═══════════ Social (estilo Dawn) ═══════════ */
 .sa.group { display: grid; place-items: center; background: rgba(var(--accent-rgb), .25); color: var(--orange-2); }
 .sr.active { background: rgba(var(--accent-rgb), .12); box-shadow: inset 3px 0 0 var(--orange); }
 .sr.pick { position: relative; cursor: pointer; }
@@ -628,7 +613,6 @@ select.input { cursor: pointer; }
 .sh-btn.boxed:hover { border-color: var(--orange); }
 .sc-head { gap: 12px; padding-bottom: 14px; }
 
-/* conversación: mensajes agrupados, todos alineados a la izquierda */
 .sc-msgs { gap: 4px; }
 .sc-day { display: flex; align-items: center; gap: 14px; margin: 8px 0 10px; color: #8d8d99; font-size: 12px; font-weight: 700; }
 .sc-day::before, .sc-day::after { content: ""; flex: 1; height: 1px; background: #2e2e31; }
@@ -641,7 +625,6 @@ select.input { cursor: pointer; }
 .sc-composer input { height: 46px; border-radius: 10px; border-width: 1px; }
 .sc-send { width: 46px; height: 46px; border-radius: 10px; }
 
-/* ventanas «Agregar amigo» y «Nuevo chat» */
 .modal-box.social-modal { width: min(560px, 100%); background: #181818; }
 .modal-box.social-modal.tall { height: min(720px, calc(100vh - 60px)); }
 .social-modal .modal-head, .social-big .modal-head { border-bottom: 0; }
@@ -671,7 +654,6 @@ select.input { cursor: pointer; }
 .sm-back { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px 6px 4px; border: 0; background: transparent; color: #c4c4cb; font: inherit; font-weight: 700; cursor: pointer; }
 .sm-back:hover { color: #fff; }
 
-/* ventana grande «Charlas»: lista a la izquierda, conversación a la derecha */
 .modal-box.social-big { width: min(1280px, 100%); height: min(820px, calc(100vh - 40px)); max-height: none; background: #181818; }
 .social-big .modal-body { padding: 0 24px 24px; overflow: hidden; }
 .social-big .modal-head { padding-bottom: 14px; }
@@ -692,7 +674,6 @@ select.input { cursor: pointer; }
 .sx-blank { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #8d8d99; }
 .sx-blank strong { color: #c4c4cb; font-size: 18px; }
 
-/* ═══════════ Configuración: mismo estilo que Dawn ═══════════ */
 .modal-box.settings-box { width: min(1160px, 100%); height: min(860px, calc(100vh - 60px)); background: #181818; border-color: #2a2a2a; border-radius: 16px; }
 .settings-box .modal-head { margin: 0 24px; padding: 22px 0 16px; border-bottom: 1px solid #2a2a2a; }
 .settings-box .modal-head h3 { font-size: 30px; font-weight: 800; }
@@ -720,25 +701,16 @@ select.input { cursor: pointer; }
 .settings-box .settings-list.two { display: grid; grid-template-columns: 1fr 1fr; }
 @media (max-width: 900px) { .settings-box .settings-list.two { grid-template-columns: 1fr; } }
 
-/* ═══════════ Ajuste de tamaños al 100% ═══════════ */
-
-/* compatibilidad de mods con la versión del perfil */
 .c-version { display: inline-flex; align-items: center; gap: 6px; }
 .compat-badge { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; cursor: help; }
 .compat-badge.ok { color: #4ade80; background: rgba(74,222,128,.12); }
 .compat-badge.bad { color: #ffb02e; background: rgba(255,176,46,.16); box-shadow: 0 0 0 1px rgba(255,176,46,.5); }
 .trow.incompat .c-name strong { color: #ffd08a; }
 
-/* cartel "Actualización disponible" */
-
 @keyframes upd-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), .45); } 50% { box-shadow: 0 0 0 6px rgba(var(--accent-rgb), 0); } }
 
-/* Logo en pixel art: se escala sin suavizar para que quede nítido. */
 .pixel { image-rendering: pixelated; }
 
-/* ═════════════════════════════════════════════════════════════════════
-   Barra superior, inicio y tema oscuro con detalles en rojo
-   ═════════════════════════════════════════════════════════════════════ */
 :root {
   --topbar: 64px;
   --glass: rgba(17, 17, 21, .74);
@@ -760,7 +732,6 @@ body {
   box-shadow: 0 12px 32px rgba(0, 0, 0, .34);
 }
 
-/* ── Barra superior ── */
 .topbar {
   position: relative; z-index: 20; height: var(--topbar);
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px;
@@ -822,7 +793,6 @@ body {
 .tb-close { color: #ff6a72; background: rgba(229, 56, 70, .14); }
 .tb-close:hover { background: #e5383f; color: #fff; }
 
-/* El cartel de actualización flota centrado debajo de la barra, así no corre las pestañas. */
 .update-pill {
   position: absolute; top: calc(100% + 10px); left: 50%; transform: translateX(-50%); z-index: 30;
   box-shadow: 0 10px 30px rgba(0, 0, 0, .45); backdrop-filter: blur(10px);
@@ -834,12 +804,10 @@ body {
 .update-pill.clickable:hover { filter: brightness(1.1); }
 .update-pill.pulse { animation: upd-pulse 1.8s ease-in-out infinite; }
 
-/* ── Estructura ── */
 .shell { height: calc(100% - var(--topbar)); }
 .content { height: 100%; min-width: 0; padding: 18px 22px; overflow-y: auto; user-select: text; }
 #view-home.active { height: 100%; }
 
-/* ── Inicio ── */
 .home {
   height: 100%; min-height: 590px;
   display: grid; gap: 14px 16px;
@@ -852,7 +820,6 @@ body {
     "news   mods   side";
 }
 
-/* Escena con fondo de Minecraft */
 .hero {
   grid-area: hero; position: relative; overflow: hidden; min-height: 0;
   background: #0b0b10; cursor: grab; touch-action: none; user-select: none;
@@ -926,7 +893,6 @@ body {
 }
 .hero-pill .btn-small { border-radius: 999px; padding: 6px 14px; }
 
-/* Botón JUGAR */
 .launch { grid-area: launch; display: flex; height: 64px; }
 .launch-btn {
   position: relative; flex: 1; overflow: hidden;
@@ -976,7 +942,6 @@ body {
 .home-progress .progress-track { flex: 1; height: 4px; background: rgba(255, 255, 255, .06); }
 .progress-bar { background: linear-gradient(90deg, var(--accent-b), var(--accent-a)); box-shadow: 0 0 10px rgba(var(--accent-rgb), .6); }
 
-/* Paneles inferiores */
 .panel { display: flex; flex-direction: column; min-height: 0; padding: 14px 16px 12px; }
 .news-panel { grid-area: news; }
 .mods-panel { grid-area: mods; }
@@ -1042,7 +1007,6 @@ body {
 .mod-row .sw { flex-shrink: 0; transform: scale(.82); transform-origin: right center; }
 .mods-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; border: 1px dashed rgba(255, 255, 255, .08); border-radius: 10px; text-align: center; }
 
-/* Panel derecho con el logo */
 .brand-panel {
   grid-area: side; position: relative; overflow: hidden; min-height: 0;
   display: flex; flex-direction: column; gap: 14px; padding: 18px 18px 76px;
@@ -1092,10 +1056,8 @@ body {
 .chip-name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .info-row { display: flex; justify-content: space-between; font-size: 13px; }
 
-/* La barra de charlas se acomoda al pie del panel derecho */
 .social { right: 34px; bottom: 31px; width: calc(var(--side-w) - 34px); }
 
-/* ── Botones del resto del launcher con el mismo estilo ── */
 .btn { transition: filter .18s, background .18s, border-color .18s, box-shadow .2s, transform .12s; }
 .btn-accent:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(var(--accent-rgb), .35); }
 .btn-play, .btn-green {
@@ -1109,7 +1071,6 @@ body {
 .btn-icon { transition: background .15s, border-color .15s, color .15s; }
 .btn-icon:hover { border-color: rgba(var(--accent-rgb), .55); }
 
-/* ── Pantallas más chicas ── */
 @media (max-width: 1320px) {
   .tab { padding: 0 13px; }
   .tb-word { font-size: 14px; letter-spacing: 2px; }
@@ -1133,10 +1094,8 @@ body {
 
 .reduce-motion .hero-bg { transition: none; transform: none; }
 
-/* Juego abierto: se frenan todas las animaciones del launcher (Minecraft se queda con la GPU). */
 body.game-running *, body.game-running *::before, body.game-running *::after { animation-play-state: paused !important; }
 
-/* Foco visible para quien usa el teclado (el mouse no lo muestra). */
 :where(button, a, select, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--accent-a); outline-offset: 2px;
 }

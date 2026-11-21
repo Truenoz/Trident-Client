@@ -1,17 +1,7 @@
 'use strict';
 
-// Visor 3D de skins de Minecraft, en WebGL puro (sin librerías).
-//
-//   const viewer = Skin3D.create(canvas, hostElement);   // null si el equipo no soporta WebGL
-//   await viewer.setSkin(dataUrl, 'classic' | 'slim' | 'auto');
-//   viewer.faceDataURL(64);                              // la cara (con capa extra) como imagen
-//
-// Soporta skins de 64×64 y las viejas de 64×32, con texturas HD (128×128, ...), brazos finos (Alex),
-// la capa exterior (sombrero, chaqueta, mangas, pantalones) y semitransparencias.
-// El personaje respira, la cabeza sigue al mouse, y se lo puede girar arrastrando (doble clic = volver).
-
 (function () {
-  // ───────────── Matrices 4×4 (columna mayor) ─────────────
+
   const m4 = {
     id: () => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
     mul(a, b) {
@@ -33,31 +23,26 @@
     }
   };
 
-  // ───────────── Geometría ─────────────
-  // Caja centrada en el origen. (u, v) es la esquina de su región en la textura de 64×64.
-  // Cada vértice: x y z  u v  nx ny nz  (las UV ya van normalizadas, así sirven para HD).
   function buildBox(w, h, d, u, v, inflate) {
     const sx = w / 2 + inflate, sy = h / 2 + inflate, sz = d / 2 + inflate;
-    // [TL, TR, BR, BL] vistos desde afuera, normal, rectángulo UV (x1, y1, x2, y2)
+
     const faces = [
-      [[-sx, sy, sz], [sx, sy, sz], [sx, -sy, sz], [-sx, -sy, sz], [0, 0, 1], [u + d, v + d, u + d + w, v + d + h]],             // frente
-      [[sx, sy, -sz], [-sx, sy, -sz], [-sx, -sy, -sz], [sx, -sy, -sz], [0, 0, -1], [u + 2 * d + w, v + d, u + 2 * d + 2 * w, v + d + h]], // espalda
-      [[-sx, sy, -sz], [-sx, sy, sz], [-sx, -sy, sz], [-sx, -sy, -sz], [-1, 0, 0], [u, v + d, u + d, v + d + h]],               // costado derecho del personaje
-      [[sx, sy, sz], [sx, sy, -sz], [sx, -sy, -sz], [sx, -sy, sz], [1, 0, 0], [u + d + w, v + d, u + 2 * d + w, v + d + h]],      // costado izquierdo
-      [[-sx, sy, -sz], [sx, sy, -sz], [sx, sy, sz], [-sx, sy, sz], [0, 1, 0], [u + d, v, u + d + w, v + d]],                    // arriba
-      [[-sx, -sy, sz], [sx, -sy, sz], [sx, -sy, -sz], [-sx, -sy, -sz], [0, -1, 0], [u + d + w, v, u + 2 * d + w, v + d]]         // abajo
+      [[-sx, sy, sz], [sx, sy, sz], [sx, -sy, sz], [-sx, -sy, sz], [0, 0, 1], [u + d, v + d, u + d + w, v + d + h]],
+      [[sx, sy, -sz], [-sx, sy, -sz], [-sx, -sy, -sz], [sx, -sy, -sz], [0, 0, -1], [u + 2 * d + w, v + d, u + 2 * d + 2 * w, v + d + h]],
+      [[-sx, sy, -sz], [-sx, sy, sz], [-sx, -sy, sz], [-sx, -sy, -sz], [-1, 0, 0], [u, v + d, u + d, v + d + h]],
+      [[sx, sy, sz], [sx, sy, -sz], [sx, -sy, -sz], [sx, -sy, sz], [1, 0, 0], [u + d + w, v + d, u + 2 * d + w, v + d + h]],
+      [[-sx, sy, -sz], [sx, sy, -sz], [sx, sy, sz], [-sx, sy, sz], [0, 1, 0], [u + d, v, u + d + w, v + d]],
+      [[-sx, -sy, sz], [sx, -sy, sz], [sx, -sy, -sz], [-sx, -sy, -sz], [0, -1, 0], [u + d + w, v, u + 2 * d + w, v + d]]
     ];
     const out = [];
     for (const [tl, tr, br, bl, n, uv] of faces) {
       const [u0, v0, u1, v1] = uv.map((k) => k / 64);
-      const q = [[tl, u0, v0], [bl, u0, v1], [br, u1, v1], [tl, u0, v0], [br, u1, v1], [tr, u1, v0]]; // antihorario
+      const q = [[tl, u0, v0], [bl, u0, v1], [br, u1, v1], [tl, u0, v0], [br, u1, v1], [tr, u1, v0]];
       for (const [p, pu, pv] of q) out.push(p[0], p[1], p[2], pu, pv, n[0], n[1], n[2]);
     }
     return new Float32Array(out);
   }
 
-  // Partes del cuerpo. `layer` 0 = capa base (opaca), 1 = capa exterior (con transparencia).
-  // pivot = punto sobre el que gira; center = centro de la caja. Unidades: 1 píxel de skin.
   function partDefs(slim) {
     const aw = slim ? 3 : 4;
     const ax = 4 + aw / 2;
@@ -78,7 +63,6 @@
     ];
   }
 
-  // ───────────── Textura ─────────────
   function loadImage(src) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -88,7 +72,6 @@
     });
   }
 
-  // Devuelve { canvas (siempre cuadrado), slim }.
   function prepareSkin(img) {
     const W = img.naturalWidth, H = img.naturalHeight;
     if (!W || W % 64 !== 0 || (H !== W && H !== W / 2)) throw new Error(`Tamaño de skin no válido (${W}×${H}).`);
@@ -102,7 +85,7 @@
 
     let slim = false;
     if (!legacy) {
-      // Una skin fina deja libres estas columnas junto a los brazos.
+
       const free = [[50, 16, 2, 4], [54, 20, 2, 12], [42, 48, 2, 4], [46, 52, 2, 12]];
       slim = free.every(([x, y, w, h]) => {
         const px = ctx.getImageData(x * s, y * s, w * s, h * s).data;
@@ -110,7 +93,7 @@
         return true;
       });
     } else {
-      // Skin vieja (64×32): el brazo y la pierna izquierdos son el espejo de los derechos.
+
       const flip = (sx, sy, sw, sh, dx, dy) => {
         ctx.save();
         ctx.scale(-1, 1);
@@ -118,16 +101,16 @@
         ctx.restore();
       };
       const mirrorLimb = (ox, oy, nx, ny) => {
-        flip(ox + 4, oy, 4, 4, nx + 4, ny);         // arriba
-        flip(ox + 8, oy, 4, 4, nx + 8, ny);         // abajo
-        flip(ox + 8, oy + 4, 4, 12, nx, ny + 4);    // costado (se intercambian)
-        flip(ox + 4, oy + 4, 4, 12, nx + 4, ny + 4); // frente
-        flip(ox, oy + 4, 4, 12, nx + 8, ny + 4);    // costado
-        flip(ox + 12, oy + 4, 4, 12, nx + 12, ny + 4); // espalda
+        flip(ox + 4, oy, 4, 4, nx + 4, ny);
+        flip(ox + 8, oy, 4, 4, nx + 8, ny);
+        flip(ox + 8, oy + 4, 4, 12, nx, ny + 4);
+        flip(ox + 4, oy + 4, 4, 12, nx + 4, ny + 4);
+        flip(ox, oy + 4, 4, 12, nx + 8, ny + 4);
+        flip(ox + 12, oy + 4, 4, 12, nx + 12, ny + 4);
       };
-      mirrorLimb(0, 16, 16, 48);  // pierna
-      mirrorLimb(40, 16, 32, 48); // brazo
-      // Minecraft ignora la transparencia de la capa base en las skins viejas.
+      mirrorLimb(0, 16, 16, 48);
+      mirrorLimb(40, 16, 32, 48);
+
       for (const [x, y, w, h] of [[0, 0, 32, 16], [0, 16, 64, 16], [16, 48, 32, 16]]) {
         const d = ctx.getImageData(x * s, y * s, w * s, h * s);
         for (let i = 3; i < d.data.length; i += 4) d.data[i] = 255;
@@ -137,7 +120,6 @@
     return { canvas, slim };
   }
 
-  // ───────────── Visor ─────────────
   const VERT = `
     attribute vec3 a_pos; attribute vec2 a_uv; attribute vec3 a_nrm;
     uniform mat4 u_mvp; uniform mat4 u_rot;
@@ -174,7 +156,7 @@
     return sh;
   }
 
-  const DEFAULT_YAW = 0;   // de frente
+  const DEFAULT_YAW = 0;
   const DEFAULT_PITCH = 0.08;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -211,9 +193,9 @@
     gl.uniform1i(loc.tex, 0);
 
     const texture = gl.createTexture();
-    let parts = [];          // { def, buffer, count }
+    let parts = [];
     let hasSkin = false;
-    let faceSource = null;   // canvas con la skin ya preparada
+    let faceSource = null;
     let lost = false;
 
     function setParts(slim) {
@@ -228,7 +210,6 @@
     }
     setParts(false);
 
-    // Estado de la vista
     const view = { yaw: DEFAULT_YAW, pitch: DEFAULT_PITCH, userTouched: false, headYaw: 0, headPitch: 0, tHeadYaw: 0, tHeadPitch: 0 };
     let drag = null;
 
@@ -237,7 +218,7 @@
       drag = { x: e.clientX, y: e.clientY };
       view.userTouched = true;
       host.classList.add('grabbing');
-      try { host.setPointerCapture(e.pointerId); } catch { /* no es crítico */ }
+      try { host.setPointerCapture(e.pointerId); } catch {  }
     };
     const onMove = (e) => {
       const r = canvas.getBoundingClientRect();
@@ -253,7 +234,7 @@
     const onUp = (e) => {
       drag = null;
       host.classList.remove('grabbing');
-      try { host.releasePointerCapture(e.pointerId); } catch { /* no es crítico */ }
+      try { host.releasePointerCapture(e.pointerId); } catch {  }
     };
     const onLeave = () => { if (!drag) { view.tHeadYaw = 0; view.tHeadPitch = 0; } };
     const onDouble = (e) => {
@@ -291,7 +272,7 @@
 
       const rootRot = m4.mul(m4.rx(view.pitch), m4.ry(view.yaw + sway));
       const root = m4.mul(rootRot, m4.move(0, -16, 0));
-      const dist = 18 / Math.tan(0.22); // el personaje (32 + margen) llena el alto del canvas
+      const dist = 18 / Math.tan(0.22);
       const proj = m4.mul(m4.persp(0.44, canvas.width / canvas.height, 10, 300), m4.move(0, 0, -dist));
       const viewProj = m4.mul(proj, root);
 
@@ -324,7 +305,7 @@
 
     let raf = 0;
     let running = true;
-    // No se dibuja si no se ve (otra pantalla, ventana oculta o el juego abierto): ahorra GPU y CPU.
+
     function frame(t) {
       if (!running) return;
       const idle = document.hidden || !host.isConnected || host.offsetParent === null ||
@@ -338,7 +319,6 @@
     const api = {
       onLost: null,
 
-      // model: 'classic' | 'slim' | 'auto' (se deduce de la textura)
       async setSkin(src, model) {
         const img = await loadImage(src);
         const { canvas: skinCanvas, slim: detected } = prepareSkin(img);
@@ -356,7 +336,6 @@
         return { slim, size: skinCanvas.width };
       },
 
-      // La cara (8×8 + capa exterior) escalada sin suavizar, lista para un <img>.
       faceDataURL(size) {
         if (!faceSource) return null;
         const s = faceSource.width / 64;

@@ -1,12 +1,9 @@
-// Consultas HTTP simples: lista de versiones de Minecraft y novedades de Mojang.
-
 use serde_json::{json, Value};
 use std::time::Duration;
 
 const MANIFEST_URL: &str = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
 const NEWS_BASE: &str = "https://launchercontent.mojang.com";
 
-// Únicas versiones de Minecraft que se pueden elegir (igual que client-mod/versions.txt).
 const ALLOWED_VERSIONS: &[&str] = &[
     "1.19.2", "1.19.3", "1.19.4",
     "1.20.1", "1.20.2", "1.20.3", "1.20.4", "1.20.5", "1.20.6",
@@ -39,7 +36,6 @@ pub fn is_allowed(id: &str) -> bool {
     ALLOWED_VERSIONS.contains(&id)
 }
 
-/// Orden del manifiesto de Mojang (más nuevas primero), solo las versiones permitidas.
 pub async fn list_versions(app_version: &str) -> Result<Value, String> {
     let manifest = get_json(app_version, MANIFEST_URL).await?;
     let mut out: Vec<Value> = Vec::new();
@@ -54,7 +50,6 @@ pub async fn list_versions(app_version: &str) -> Result<Value, String> {
     Ok(Value::Array(out))
 }
 
-/// Últimas notas de versión oficiales (las 3 más recientes de tipo «release»).
 pub async fn news(app_version: &str) -> Result<Value, String> {
     let url = format!("{}/v2/javaPatchNotes.json", NEWS_BASE);
     let json = get_json(app_version, &url).await?;
@@ -77,8 +72,6 @@ pub async fn news(app_version: &str) -> Result<Value, String> {
     Ok(Value::Array(out))
 }
 
-/// Imagen oficial de cada versión según las notas de versión de Mojang:
-/// `{ "1.21.4": "https://launchercontent.mojang.com/v2/images/…jpg", … }`.
 pub async fn version_art(app_version: &str) -> Result<Value, String> {
     let url = format!("{}/v2/javaPatchNotes.json", NEWS_BASE);
     let json = get_json(app_version, &url).await?;

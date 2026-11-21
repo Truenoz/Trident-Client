@@ -1,7 +1,5 @@
 'use strict';
 
-// Expone `window.launcher` (lo que usa toda la interfaz) hablando con el backend de Tauri (Rust).
-// Cada llamada devuelve { ok, data } o { ok:false, error }, igual que en Electron.
 (function () {
   const T = window.__TAURI__;
   if (!T || !T.core) {
@@ -13,7 +11,6 @@
 
   const msg = (e) => (typeof e === 'string' ? e : (e && e.message) || String(e));
 
-  // Comando de Rust → respuesta {ok,data}. `args` convierte los parámetros de la interfaz al objeto del comando.
   const cmd = (name, args) => async (...a) => {
     try {
       return { ok: true, data: await invoke(name, args ? args(...a) : {}) };
@@ -28,25 +25,24 @@
     return () => { dead = true; if (off) off(); };
   }
 
-  // Copia texto al portapapeles (con respaldo para cuando el navegador integrado no lo permite).
   async function copyText(text) {
     try {
       await navigator.clipboard.writeText(text);
       return;
-    } catch (_) { /* se prueba el método antiguo */ }
+    } catch (_) {  }
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); } catch (_) { /* sin portapapeles: el código igual se muestra */ }
+    try { document.execCommand('copy'); } catch (_) {  }
     ta.remove();
   }
 
   const fire = (name) => () => { invoke(name).catch(() => {}); };
 
   window.launcher = {
-    // ── Aplicación, ajustes y perfiles ──
+
     appInfo: cmd('app_info'),
     getSettings: cmd('settings_get'),
     setSettings: cmd('settings_set', (patch) => ({ patch: patch || {} })),
@@ -72,7 +68,6 @@
     maximize: fire('win_maximize'),
     close: fire('win_close'),
 
-    // ── Cuenta y lanzamiento de Minecraft ──
     restoreSession: cmd('auth_restore'),
     login: cmd('auth_login'),
     offlineLogin: cmd('auth_offline', (name) => ({ name: String(name || '') })),
@@ -81,18 +76,16 @@
     stop: cmd('game_stop'),
     clearJava: cmd('danger_clear_java'),
 
-    // ── Perfiles: copiar, exportar, compartir, importar ──
     copyFromProfile: cmd('profiles_copy_from', (id, sourceId) => ({ id, sourceId })),
     exportProfile: cmd('profiles_export', (id) => ({ id })),
     shareProfile: async (id) => {
       const r = await cmd('profiles_share', (x) => ({ id: x }))(id);
-      if (r.ok) await copyText(r.data); // igual que Electron: el código queda en el portapapeles
+      if (r.ok) await copyText(r.data);
       return r;
     },
     importProfileFile: cmd('profiles_import_file'),
     importProfileCode: cmd('profiles_import_code', (code) => ({ code: String(code || '') })),
 
-    // ── Contenido y mods ──
     listContent: cmd('content_list', (id) => ({ id })),
     toggleContent: cmd('content_toggle', (id, file, enabled) => ({ id, file, enabled: !!enabled })),
     removeContent: cmd('content_remove', (id, file) => ({ id, file })),
@@ -106,22 +99,18 @@
     addLocalContent: cmd('content_add_local', (id, paths) => ({ id, paths: Array.isArray(paths) ? paths.map(String) : [] })),
     getPerf: cmd('perf_get', (id) => ({ id })),
 
-    // ── Mundos, registros y servidores ──
     listWorlds: cmd('worlds_list', (id) => ({ id })),
     openWorld: cmd('worlds_open', (id, name) => ({ id, name: String(name) })),
     readLog: cmd('logs_read', (id) => ({ id })),
 
-    // ── Skins y depuración ──
     getSkin: cmd('skin_get', (query, opts) => ({ query: String(query || ''), force: !!(opts && opts.force) })),
     getMySkin: cmd('skin_mine', (opts) => ({ force: !!(opts && opts.force) })),
     exportDebug: cmd('debug_export'),
 
-    // ── Actualizaciones del launcher y de Nova Client ──
     checkUpdates: cmd('update_check'),
     holdUpdate: cmd('update_hold'),
     startUpdate: cmd('update_start'),
 
-    // ── Eventos ──
     onStatus: (cb) => subscribe('game:status', cb),
     onLog: (cb) => subscribe('game:log', cb),
     onMaximized: (cb) => subscribe('win:maximized', cb),
@@ -129,8 +118,6 @@
     onProfileProgress: (cb) => subscribe('profile:progress', cb)
   };
 
-  // ── Barra de título sin marco ──
-  // Electron usa `-webkit-app-region: drag` en el CSS; Tauri no, así que se reproduce con el ratón.
   function regionAt(el) {
     for (; el && el.nodeType === 1; el = el.parentElement) {
       const v = getComputedStyle(el).getPropertyValue('-webkit-app-region');
@@ -147,7 +134,6 @@
     if (regionAt(e.target) === 'drag') invoke('win_maximize').catch(() => {});
   });
 
-  // ── Enlaces externos: siempre en el navegador, nunca dentro de la app ──
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a[href]');
     if (!a) return;
@@ -158,8 +144,6 @@
     }
   }, true);
 
-  // ── Errores de la interfaz → errores.log ──
-  // Si «Guardar informes de errores» está apagado, el backend los descarta. Tope por sesión para no inundar el archivo.
   let reported = 0;
   const report = (kind, detail) => {
     if (reported >= 20) return;

@@ -1,9 +1,5 @@
 'use strict';
 
-// Página «Modificaciones» (estilo Dawn): pestañas por tipo, buscador, filtros laterales,
-// carrusel de tendencias, lista de resultados con botón INSTALAR y paginación.
-// Todo sale de Modrinth a través del proceso principal (content:browse). Se instala en el perfil elegido arriba.
-
 const MODS_TABS = [
   ['mod', 'Modificaciones'],
   ['modpack', 'Paquetes de modificaciones'],
@@ -41,8 +37,6 @@ const mods = {
   el: {}
 };
 
-// ───────────────────────── Formatos ─────────────────────────
-
 function modsCount(n) {
   n = Number(n) || 0;
   const f = (v, s) => `${v.toFixed(v >= 100 ? 0 : 1).replace(/\.0$/, '').replace('.', ',')}${s}`;
@@ -59,8 +53,6 @@ function modsDate(iso) {
 }
 
 const modsCatLabel = (c) => c.replace(/-/g, ' ').replace(/^./, (x) => x.toUpperCase());
-
-// ───────────────────────── Instalar ─────────────────────────
 
 async function modsInstall(hit, btn, label) {
   if (hit.type === 'modpack') {
@@ -84,7 +76,6 @@ async function modsInstall(hit, btn, label) {
   }
 }
 
-// Botón INSTALAR (verde). `small` = botón cuadrado de las tarjetas de tendencias.
 function modsInstallButton(hit, small) {
   const btn = h('button', { class: small ? 'mi-btn small' : 'mi-btn', type: 'button' });
   const label = () => {
@@ -100,8 +91,6 @@ function modsInstallButton(hit, small) {
   btn.addEventListener('click', (e) => { e.stopPropagation(); modsInstall(hit, btn, label); });
   return btn;
 }
-
-// ───────────────────────── Piezas ─────────────────────────
 
 function modsIcon(hit, size) {
   return hit.icon
@@ -131,8 +120,6 @@ function modsTrendCard(hit, i) {
     modsInstallButton(hit, !first));
 }
 
-// ───────────────────────── Filtros ─────────────────────────
-
 function modsFilterSection(title, items, selected, onChange) {
   const list = h('div', { class: 'mf-list' });
   for (const [value, label] of items) {
@@ -153,7 +140,7 @@ function modsDrawFilters() {
   const again = () => { mods.page = 1; modsRun(); };
 
   const versions = (state.versions || []).filter((v) => v.type === 'release').map((v) => [v.id, v.id]);
-  // Si el perfil usa una versión que no está en la lista, igual se ofrece.
+
   const p = profileById(mods.profileId);
   if (p && !versions.some(([id]) => id === p.mc)) versions.unshift([p.mc, p.mc]);
 
@@ -164,8 +151,6 @@ function modsDrawFilters() {
   if (mods.type === 'mod' || mods.type === 'modpack') box.append(modsFilterSection('Cargador de mods', MODS_LOADERS, mods.loaders, again));
   box.append(modsFilterSection('Categoría', MODS_CATS[mods.type].map((c) => [c, modsCatLabel(c)]), mods.cats, again));
 }
-
-// ───────────────────────── Datos ─────────────────────────
 
 function modsFilterPayload() {
   return { versions: [...mods.versions], loaders: [...mods.loaders], categories: [...mods.cats] };
@@ -198,7 +183,7 @@ async function modsRun() {
 }
 
 function modsPages() {
-  // Modrinth no entrega resultados más allá de los primeros 10 000.
+
   return Math.max(1, Math.min(Math.ceil(mods.total / mods.limit), Math.floor(10000 / mods.limit)));
 }
 
@@ -230,11 +215,9 @@ async function modsLoadTrending() {
     mods.trend[type] = r.hits;
     draw(r.hits);
   } catch {
-    if (type === mods.type) mods.el.trend.classList.add('hidden'); // sin red: se oculta, la lista muestra el error
+    if (type === mods.type) mods.el.trend.classList.add('hidden');
   }
 }
-
-// ───────────────────────── Perfil de destino ─────────────────────────
 
 function modsPickProfile(id, applyDefaults) {
   mods.profileId = id;
@@ -263,8 +246,6 @@ function modsSyncProfiles() {
   if (!profileById(mods.profileId)) modsPickProfile(lastProfile()?.id || state.profiles[0].id, true);
   sel.value = mods.profileId;
 }
-
-// ───────────────────────── Montaje ─────────────────────────
 
 function buildMods(root) {
   const profile = h('select', { class: 'mods-select', 'aria-label': 'Instalar en el perfil' });

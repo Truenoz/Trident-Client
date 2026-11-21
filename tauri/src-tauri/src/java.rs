@@ -1,10 +1,6 @@
-// Java automático (igual que ensureJava de la versión Electron): usa la ruta de Ajustes si existe;
-// si no, baja un JRE de Eclipse Temurin a `.tridentclient/runtime/jre-<N>`.
-
 use crate::{dl, launcher::Progress};
 use std::path::{Path, PathBuf};
 
-/// Java que se descarga: 8, 17, 21, o la versión pedida si es mayor (p. ej. 25 para Minecraft 26.x).
 pub fn adopt_major(major: u32) -> u32 {
     match major {
         0..=8 => 8,
@@ -36,7 +32,7 @@ pub async fn ensure_java(game_dir: &Path, custom: &str, major: u32, progress: Pr
     if !custom.trim().is_empty() && Path::new(custom.trim()).exists() {
         return Ok(PathBuf::from(custom.trim()));
     }
-    // Fuera de Windows no se baja nada: se usa el Java del sistema (solo para pruebas).
+
     if !cfg!(windows) {
         return Ok(PathBuf::from("java"));
     }
@@ -67,7 +63,6 @@ pub async fn ensure_java(game_dir: &Path, custom: &str, major: u32, progress: Pr
     find_file(&runtime, EXE).ok_or_else(|| format!("No se encontró {EXE} tras instalar Java."))
 }
 
-/// Extrae un zip sin permitir rutas que se salgan de la carpeta de destino.
 pub fn unzip(zip_path: &Path, dest: &Path) -> Result<(), String> {
     let file = std::fs::File::open(zip_path).map_err(|e| e.to_string())?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("El archivo de Java está dañado: {e}"))?;

@@ -9,13 +9,12 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- Pantalla de carga -->
+
   <div id="boot" class="boot" aria-label="Cargando">
     <img class="boot-icon pixel" src="logo.png" alt="Trident Client" draggable="false" />
     <div class="boot-spinner" role="progressbar" aria-label="Cargando"></div>
   </div>
 
-  <!-- Barra superior: logo, pestañas y botones de ventana -->
   <header class="topbar">
     <div class="tb-brand">
       <img class="pixel" src="logo.png" alt="" width="30" height="30" draggable="false" />
@@ -48,10 +47,10 @@
 
   <div class="shell">
     <main class="content">
-      <!-- ═══════════ INICIO ═══════════ -->
+
       <section id="view-home" class="view active">
         <div class="home">
-          <!-- Escena: fondo de Minecraft, versión del perfil y tu personaje -->
+
           <div class="hero glass">
             <div class="hero-bg" id="hero-bg-a"></div>
             <div class="hero-bg" id="hero-bg-b"></div>
@@ -81,7 +80,6 @@
             </div>
           </div>
 
-          <!-- Botón grande para jugar + selector de perfil -->
           <div class="launch">
             <button id="rail-play" class="launch-btn" type="button" disabled>
               <span class="launch-fill" id="launch-fill"></span>
@@ -97,7 +95,6 @@
             <p id="play-error" class="error hidden" role="alert"></p>
           </div>
 
-          <!-- Novedades -->
           <section class="panel news-panel glass" aria-label="Novedades">
             <div class="panel-head">
               <span class="panel-title">Novedades de Minecraft</span>
@@ -109,7 +106,6 @@
             <div class="news-dots" id="news-dots"></div>
           </section>
 
-          <!-- Mods del perfil elegido -->
           <section class="panel mods-panel glass" aria-label="Mods instalados">
             <div class="panel-head">
               <span class="panel-title" id="mods-title">Mods instalados</span>
@@ -121,7 +117,6 @@
             <div id="home-mods" class="home-mods"></div>
           </section>
 
-          <!-- Panel derecho: logo de Trident, cuenta e instalación -->
           <aside class="brand-panel glass">
             <div class="brand-stars" aria-hidden="true"></div>
             <div class="brand-center">
@@ -159,7 +154,6 @@
         </div>
       </section>
 
-      <!-- ═══════════ PERFILES ═══════════ -->
       <section id="view-profiles" class="view">
         <div class="page-head">
           <h2>Perfiles</h2>
@@ -179,15 +173,10 @@
         <div id="profile-groups"></div>
       </section>
 
-      <!-- ═══════════ DETALLE DE PERFIL ═══════════ -->
       <section id="view-detail" class="view"></section>
 
-      <!-- ═══════════ CONTENIDO (buscador global) ═══════════ -->
       <section id="view-browse" class="view"></section>
 
-      <!-- ═══════════ SERVIDORES ═══════════ -->
-
-      <!-- ═══════════ REGISTRO ═══════════ -->
       <section id="view-console" class="view">
         <div class="page-head">
           <h2>Registro</h2>
@@ -198,7 +187,6 @@
     </main>
   </div>
 
-  <!-- Panel social (Charlas / Amigos) -->
   <div id="social" class="social"></div>
 
   <script src="launcher-shim.js"></script>

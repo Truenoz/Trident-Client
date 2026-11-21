@@ -1,10 +1,7 @@
 'use strict';
 
-// Utilidades de interfaz compartidas: DOM, íconos, ventanas, menús, avisos.
-
 const $ = (id) => document.getElementById(id);
 
-// h('div', { class: 'x', onclick: fn, text: 'hola' }, hijo1, 'texto', ...)
 function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -24,7 +21,6 @@ function h(tag, attrs, ...kids) {
   return el;
 }
 
-// ── Íconos (trazos de 24×24) ──
 const ICONS = {
   home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M10 20v-5h4v5"/>',
   grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2"/>',
@@ -90,15 +86,12 @@ function icon(name, size) {
   return span;
 }
 
-// Llamadas IPC: devuelven { ok, data } o { ok:false, error }.
 async function call(promise) {
   const res = await promise;
   if (!res.ok) throw new Error(res.error);
   return res.data;
 }
 
-// Mensaje de búsqueda fallida apto para mostrar: los errores internos de JS
-// («Cannot read properties…») se reemplazan por algo que el jugador entienda.
 function searchError(e) {
   const msg = (e && e.message) || '';
   if (!msg || e instanceof TypeError || /cannot read|undefined|null|is not a function/i.test(msg)) {
@@ -107,7 +100,6 @@ function searchError(e) {
   return `No se pudo buscar: ${msg}`;
 }
 
-// ── Formatos ──
 function timeAgo(ms) {
   if (!ms) return 'Nunca jugado';
   const s = Math.max(0, (Date.now() - ms) / 1000);
@@ -135,10 +127,6 @@ function formatCount(n) {
   return String(n || 0);
 }
 
-// ── Avisos ──
-// Pila de avisos arriba a la derecha. toast(texto, tipo) con tipo: 'success' | 'error' | undefined (neutro).
-// progressToast({ title, text }) devuelve { update({title,text}), done(), close() }: aviso con barra de progreso
-// indeterminada que se queda hasta que se cierra.
 function toastStack() {
   let box = $('toast-stack');
   if (!box) {
@@ -187,7 +175,7 @@ function progressToast({ title, text }) {
       if (next.title !== undefined) t.textContent = next.title;
       if (next.text !== undefined) d.textContent = next.text;
     },
-    // Se deja visible un mínimo para que no parpadee cuando la tarea es instantánea.
+
     close(minMs = 700) {
       const wait = Math.max(0, minMs - (Date.now() - shownAt));
       setTimeout(() => dismissToast(el), wait);
@@ -195,8 +183,6 @@ function progressToast({ title, text }) {
   };
 }
 
-// ── Ventanas modales ──
-// modal({ title, icon, wide, body, footer, onClose }) -> { close, el, body }
 const modalStack = [];
 
 function modal(opts) {
@@ -271,7 +257,6 @@ function promptDialog({ title, label, value, okLabel, placeholder }) {
   });
 }
 
-// ── Menú contextual / desplegable anclado a un elemento ──
 let openMenu = null;
 
 function closeMenu() {
@@ -284,7 +269,6 @@ document.addEventListener('mousedown', (e) => {
 window.addEventListener('blur', closeMenu);
 window.addEventListener('resize', closeMenu);
 
-// items: [{ label, icon, danger, onclick } | 'sep']
 function popMenu(anchor, items, header) {
   closeMenu();
   const menu = h('div', { class: 'pop-menu', role: 'menu' });
@@ -312,7 +296,6 @@ function popMenu(anchor, items, header) {
   return menu;
 }
 
-// ── Interruptor ──
 function toggle(checked, onchange, label) {
   const input = h('input', { type: 'checkbox', class: 'sw-input', 'aria-label': label || 'Interruptor' });
   input.checked = !!checked;
@@ -320,22 +303,16 @@ function toggle(checked, onchange, label) {
   return h('label', { class: 'sw' }, input, h('span', { class: 'sw-track' }));
 }
 
-// Tinte estable por perfil para la imagen de la tarjeta.
 function hueFor(id) {
   let n = 0;
   for (const c of String(id)) n = (n * 31 + c.charCodeAt(0)) % 360;
   return n;
 }
 
-// ── Fondo según la versión de Minecraft ──
-// Cada versión usa su imagen oficial de las notas de versión de Mojang (comando version_art,
-// que la guarda en disco para usarla sin conexión). Mientras carga, o si no hay imagen,
-// queda el paisaje pixelado de hero.svg.
 const MC_NAMES = { 19: 'The Wild Update', 20: 'Trails & Tales' };
-// Drops de 1.21.x: [desde qué parche, nombre].
+
 const MC_DROPS_121 = [[11, 'Mounts of Mayhem'], [9, 'The Copper Age'], [6, 'Chase the Skies'], [5, 'Spring to Life'], [4, 'The Garden Awakens'], [2, 'Bundles of Bravery'], [0, 'Tricky Trials']];
 
-// Etiqueta de la portada: «1.21 · The Garden Awakens», «Minecraft 26.1»…
 function mcLabel(mc) {
   const v = String(mc || '').trim();
   const m = /^1\.(\d+)(?:\.(\d+))?/.exec(v);
@@ -356,7 +333,6 @@ function loadVersionArt() {
   return versionArt.req;
 }
 
-// Compara versiones numéricas («1.21.10» > «1.21.9»).
 function cmpVersion(a, b) {
   const pa = a.split(/[.-]/).map((n) => parseInt(n, 10) || 0);
   const pb = b.split(/[.-]/).map((n) => parseInt(n, 10) || 0);
@@ -364,7 +340,6 @@ function cmpVersion(a, b) {
   return 0;
 }
 
-// Imagen de la versión exacta; si no está, la de la versión más nueva de la misma familia (1.21.x, 26.x).
 function artFor(mc) {
   const map = versionArt.map || {};
   const v = String(mc || '').trim();
@@ -386,7 +361,6 @@ function paintArt(el) {
   img.src = url;
 }
 
-// Portada del perfil con la imagen oficial de su versión de Minecraft.
 function banner(profile, cls) {
   const label = mcLabel(profile.mc);
   const el = h('div', { class: `banner banner-era ${cls || ''}`, title: label, dataset: { mc: profile.mc || '' } });

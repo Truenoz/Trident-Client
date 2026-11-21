@@ -1,8 +1,3 @@
-// Trident Client (Tauri): ventana, ajustes, versiones, novedades, perfiles, cuenta (Microsoft / sin cuenta),
-// descarga de Minecraft y Java, Fabric, lanzamiento del juego, contenido (mods, Modrinth, rendimiento, mundos,
-// servidores), skins, exportar/importar perfiles, depuración, Discord, bandeja, inicio con Windows, zoom,
-// registro de errores y actualizaciones automáticas.
-
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod account;
@@ -32,10 +27,6 @@ use tauri_plugin_opener::OpenerExt;
 
 type Res = Result<Value, String>;
 
-/// Rutas de datos:
-///   user_dir = %APPDATA%\Trident Client   (settings.json, profiles.json, account.bin, mod-cache…)
-///   game_dir = %APPDATA%\.tridentclient   (versiones, instancias, mundos, Java)
-/// Quien venía de Nova Client tenía «Nova Client» y «.novalauncher»: se renombran solas al abrir (ver `data_dirs`).
 pub struct AppState {
     pub user_dir: PathBuf,
     pub game_dir: PathBuf,
@@ -45,9 +36,6 @@ pub struct AppState {
 
 static MAXIMIZED: AtomicBool = AtomicBool::new(false);
 
-/// Carpeta nueva; si todavía no existe y está la vieja, se renombra (así se conservan ajustes, cuenta,
-/// perfiles, mundos y el juego ya descargado). Si no se puede renombrar (un archivo en uso), se sigue
-/// usando la vieja y se reintenta la próxima vez que se abra el launcher.
 fn migrate_dir(new: PathBuf, old: PathBuf) -> (PathBuf, bool) {
     if new.exists() || !old.exists() {
         return (new, false);
@@ -61,12 +49,11 @@ fn migrate_dir(new: PathBuf, old: PathBuf) -> (PathBuf, bool) {
     }
 }
 
-/// (user_dir, game_dir) con las carpetas de Trident, pasando los datos de Nova Client si hacía falta.
 fn data_dirs(roaming: &Path) -> (PathBuf, PathBuf) {
     let (user_dir, _) = migrate_dir(roaming.join("Trident Client"), roaming.join("Nova Client"));
     let old_game = roaming.join(".novalauncher");
     let (game_dir, moved) = migrate_dir(roaming.join(".tridentclient"), old_game.clone());
-    // «Ruta de Java» elegida dentro de la carpeta vieja (por ejemplo un Java que bajó el launcher): se corrige.
+
     if moved {
         let s = settings::read(&user_dir);
         if let Some(rest) = s.get("javaPath").and_then(|v| v.as_str()).and_then(|p| p.strip_prefix(&*old_game.to_string_lossy())) {
@@ -84,9 +71,6 @@ fn open_folder(app: &tauri::AppHandle, dir: &Path) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-// ───────────────────────── Aplicación ─────────────────────────
-
-/// Versiones de Minecraft para las que ya hay un jar de Nova Client descargado.
 fn nova_versions(user_dir: &Path) -> Vec<String> {
     std::fs::read_dir(user_dir.join("mod-cache"))
         .map(|d| {
@@ -130,7 +114,7 @@ fn settings_get(state: State<'_, AppState>) -> Res {
 #[tauri::command]
 fn settings_set(app: tauri::AppHandle, state: State<'_, AppState>, patch: Value) -> Res {
     let next = settings::write(&state.user_dir, &patch)?;
-    // Lo que se aplica al instante: el zoom, el inicio con Windows y apagar la actividad de Discord.
+
     if patch.get("discord").and_then(|v| v.as_bool()) == Some(false) {
         game::hide_presence(&app);
     }
@@ -143,7 +127,6 @@ fn settings_set(app: tauri::AppHandle, state: State<'_, AppState>, patch: Value)
     Ok(Value::Object(next))
 }
 
-/// Errores de la interfaz (JavaScript): se guardan en errores.log solo si «Enviar informes» está activo.
 #[tauri::command]
 fn report_error(state: State<'_, AppState>, kind: String, detail: String) {
     let kind: String = kind.chars().take(40).collect();
@@ -161,7 +144,6 @@ async fn news_list(app: tauri::AppHandle) -> Res {
     net::news(&app.package_info().version.to_string()).await
 }
 
-/// Imágenes oficiales de cada versión. Se guardan en disco para tenerlas sin conexión.
 #[tauri::command]
 async fn version_art(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> Res {
     let cache = state.user_dir.join("version-art.json");
@@ -199,8 +181,6 @@ fn data_open(app: tauri::AppHandle, state: State<'_, AppState>) -> Res {
     open_folder(&app, &state.user_dir)?;
     Ok(Value::Null)
 }
-
-// ───────────────────────── Perfiles ─────────────────────────
 
 #[tauri::command]
 fn profiles_list(state: State<'_, AppState>) -> Res {
@@ -241,10 +221,6 @@ fn profiles_open_folder(app: tauri::AppHandle, state: State<'_, AppState>, id: S
     Ok(Value::Null)
 }
 
-
-// ───────────────────────── Contenido, rendimiento, mundos y servidores ─────────────────────────
-
-/// Evita tocar los archivos de un perfil mientras Minecraft lo está usando.
 fn not_running(app: &tauri::AppHandle, id: &str) -> Result<(), String> {
     if game::is_running(app).as_deref() == Some(id) {
         return Err("Cerrá el juego antes de hacer eso con este perfil.".to_string());
@@ -265,7 +241,6 @@ fn env(app: &tauri::AppHandle) -> content::Env {
     }
 }
 
-/// Trabajo de disco pesado (leer jars, calcular hashes) fuera del hilo de la interfaz.
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(f).await.map_err(|e| e.to_string())?
 }
@@ -384,7 +359,6 @@ async fn content_check_updates(app: tauri::AppHandle, id: String) -> Res {
     Ok(json!(keys))
 }
 
-// El selector y la copia van separados para que la interfaz pueda mostrar «Importando archivos locales».
 #[tauri::command]
 async fn content_pick_local(app: tauri::AppHandle, id: String) -> Res {
     not_running(&app, &id)?;
@@ -436,14 +410,11 @@ async fn logs_read(app: tauri::AppHandle, id: String) -> Res {
     Ok(json!(blocking(move || content::read_log(&e, &id)).await?))
 }
 
-// ───────────────────────── Skins ─────────────────────────
-
 #[tauri::command]
 async fn skin_get(state: State<'_, AppState>, query: String, force: Option<bool>) -> Res {
     skins::get_skin(&state.user_dir.join("skin-cache"), &query, force.unwrap_or(false), None).await
 }
 
-/// Skin de la cuenta con sesión iniciada: usa la URL y el modelo (slim/classic) que ya informa la sesión.
 #[tauri::command]
 async fn skin_mine(app: tauri::AppHandle, force: Option<bool>) -> Res {
     let session = game::get_session(&app).ok_or("No hay sesión iniciada.")?;
@@ -461,8 +432,6 @@ async fn skin_mine(app: tauri::AppHandle, force: Option<bool>) -> Res {
     };
     skins::get_skin(&dir, &session.id, force, Some(&known)).await
 }
-
-// ───────────────────────── Depuración ─────────────────────────
 
 #[tauri::command]
 async fn debug_export(app: tauri::AppHandle) -> Res {
@@ -536,7 +505,6 @@ async fn debug_export(app: tauri::AppHandle) -> Res {
     Ok(json!(path.to_string_lossy()))
 }
 
-/// Fecha civil (año, mes, día) a partir de días desde 1970-01-01 (UTC).
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719_468;
     let era = z.div_euclid(146_097);
@@ -572,7 +540,6 @@ mod tests {
         let jp = settings::read(&u)["javaPath"].as_str().unwrap().to_string();
         assert!(jp.starts_with(&*g.to_string_lossy()), "{jp}");
 
-        // Segunda vez: ya está todo en las carpetas nuevas.
         assert_eq!(data_dirs(&root), (root.join("Trident Client"), root.join(".tridentclient")));
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -584,8 +551,6 @@ mod tests {
         assert_eq!(civil_from_days(20_500), (2026, 2, 16));
     }
 }
-
-// ───────────────────────── Actualizaciones ─────────────────────────
 
 #[tauri::command]
 async fn update_check(app: tauri::AppHandle) -> Res {
@@ -604,8 +569,6 @@ fn update_start(app: tauri::AppHandle) -> Res {
     Ok(Value::Null)
 }
 
-// ───────────────────────── Zona de peligro ─────────────────────────
-
 #[tauri::command]
 fn danger_clear_cache(state: State<'_, AppState>) -> Res {
     let _ = std::fs::remove_dir_all(state.user_dir.join("mod-cache"));
@@ -616,8 +579,6 @@ fn danger_clear_cache(state: State<'_, AppState>) -> Res {
 fn danger_reset_settings(state: State<'_, AppState>) -> Res {
     Ok(Value::Object(settings::reset(&state.user_dir)))
 }
-
-// ───────────────────────── Cuenta y juego ─────────────────────────
 
 #[tauri::command]
 async fn auth_restore(app: tauri::AppHandle) -> Res {
@@ -661,8 +622,6 @@ fn danger_clear_java(app: tauri::AppHandle, state: State<'_, AppState>) -> Res {
     Ok(Value::Null)
 }
 
-// ───────────────────────── Ventana ─────────────────────────
-
 #[tauri::command]
 fn win_minimize(window: tauri::WebviewWindow) {
     let _ = window.minimize();
@@ -687,12 +646,10 @@ fn win_drag(window: tauri::WebviewWindow) {
     let _ = window.start_dragging();
 }
 
-// ───────────────────────── Arranque ─────────────────────────
-
 fn main() {
     dl::tls_init();
     tauri::Builder::default()
-        // Una sola instancia: si se abre otra vez, se trae la ventana existente al frente.
+
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
@@ -720,13 +677,11 @@ fn main() {
             system::install_panic_reporter(state.user_dir.clone());
             app.manage(state);
 
-            // La ventana se crea acá (no desde tauri.conf.json) para aplicar «Aceleración por hardware».
             let win_cfg = app.config().app.windows.first().cloned().ok_or("Falta la ventana en tauri.conf.json")?;
             tauri::WebviewWindowBuilder::from_config(app.handle(), &win_cfg)?
                 .additional_browser_args(system::session_browser_args(&current))
                 .build()?;
 
-            // Bandeja, inicio con Windows y zoom.
             let handle = app.handle().clone();
             let args: Vec<String> = std::env::args().collect();
             let hidden = system::start_hidden(&args, &current);
@@ -737,13 +692,12 @@ fn main() {
                     false
                 }
             };
-            // Mantiene al día la ruta registrada si la app se reinstaló en otra carpeta.
+
             if current.get("openAtLogin").and_then(|v| v.as_bool()).unwrap_or(false) {
                 system::apply_login_item(&current);
             }
             system::apply_zoom(&handle, &current);
-            // La ventana nace oculta (tauri.conf.json). Solo se queda oculta si Windows abrió Nova al iniciar
-            // en modo bandeja Y la bandeja existe; si no, no habría forma de abrirla.
+
             if !(hidden && tray_ok) {
                 system::show_main_window(&handle);
             }
@@ -751,7 +705,7 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // La interfaz necesita saber si la ventana está maximizada (cambia el ícono del botón).
+
             if let tauri::WindowEvent::Resized(_) = event {
                 if let Ok(max) = window.is_maximized() {
                     if MAXIMIZED.swap(max, Ordering::Relaxed) != max {

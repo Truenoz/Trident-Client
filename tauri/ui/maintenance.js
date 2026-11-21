@@ -1,21 +1,11 @@
 'use strict';
 
-// Modo mantenimiento del launcher. Lo activa el bot de Discord con /mantenimiento (o un Developer
-// desde la web): el estado vive en Supabase, en la tabla site_status (la misma que usa la web).
-// Mientras dura, tapa el launcher con la pantalla de mantenimiento (el mismo diseño que la web:
-// cuenta regresiva por bloques, barra de tiempo, mensaje del equipo y el personaje) y no deja
-// iniciar el juego. La barra de título queda libre para mover, minimizar o cerrar la ventana.
-// Si no hay internet o Supabase no responde, el launcher funciona normal (nunca deja a nadie afuera
-// por un error de red). Una partida que ya está abierta no se cierra.
-// Los estilos están en maintenance.css (este archivo lo carga solo) y la letra y el personaje en maintenance/.
-
 (function () {
   const SUPABASE_URL = 'https://dijtdqsvbrnjncdfwytj.supabase.co';
-  const SUPABASE_KEY = 'sb_publishable_gt-uuugH-NMWQv-om-X1Eg_aQ3nqWDX'; // clave pública (la misma de la web)
+  const SUPABASE_KEY = 'sb_publishable_gt-uuugH-NMWQv-om-X1Eg_aQ3nqWDX';
   const DISCORD = 'https://discord.gg/9Gj9pH6hnu';
   const CHECK_MS = 30000;
 
-  // Estilos propios (la CSP del launcher solo deja cargar hojas de estilo locales)
   if (!document.querySelector('link[data-tcm-css]')) {
     const link = document.createElement('link');
     link.rel = 'stylesheet'; link.href = 'maintenance.css'; link.dataset.tcmCss = '';
@@ -49,7 +39,6 @@
     }
   }
 
-  // Devuelve true si hay mantenimiento ahora (y actualiza la pantalla)
   async function check() {
     if (checking) return checking;
     checking = (async () => {
@@ -57,7 +46,7 @@
         status = await fetchStatus();
       } catch (e) {
         console.warn('[mantenimiento] No pude consultar el estado:', e.message);
-        // sin red: se mantiene lo último que se supo
+
       }
       render();
       return isActive(status);
@@ -137,7 +126,7 @@
       if (overlay) { b.disabled = false; b.classList.remove('is-busy'); label.textContent = 'Volver a comprobar'; }
     });
     document.body.appendChild(overlay);
-    // Si el foco estaba en el launcher de atrás, se suelta (el Tab después entra a la pantalla)
+
     if (document.activeElement && !overlay.contains(document.activeElement)) document.activeElement.blur();
   }
 
@@ -180,11 +169,10 @@
     if (!overlay || !status || !status.until) return;
     const p = parts(status.until);
     paint(p);
-    if (!p) { check(); return; } // terminó: confirmar con Supabase y desbloquear
+    if (!p) { check(); return; }
     tickTimer = setTimeout(tick, 1000);
   }
 
-  // Mientras está la pantalla, el teclado no puede activar nada del launcher de atrás
   document.addEventListener('keydown', e => {
     if (!overlay || e.key !== 'Tab') return;
     const f = [...overlay.querySelectorAll('button:not([disabled])')];
@@ -193,10 +181,9 @@
     if (e.shiftKey ? i <= 0 : i === f.length - 1 || i === -1) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
   }, true);
 
-  // No se puede iniciar el juego durante el mantenimiento (se comprueba justo antes de jugar)
   if (typeof playProfile === 'function') {
     const original = playProfile;
-    // eslint-disable-next-line no-global-assign
+
     playProfile = async function (id, opts) {
       if (await check()) {
         if (typeof toast === 'function') toast('Trident Client está en mantenimiento. Probá cuando termine la cuenta regresiva.');

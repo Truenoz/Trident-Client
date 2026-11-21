@@ -1,9 +1,3 @@
-// Núcleo del lanzador (reemplaza a minecraft-launcher-core): lee el JSON de la versión (con herencia, para Fabric),
-// aplica las reglas de Mojang, descarga cliente / librerías / recursos y arma la línea de comandos de Java.
-//
-// Estructura de carpetas idéntica a la de la versión Electron (`%APPDATA%\.tridentclient`; antes `.novalauncher`):
-//   versions/<id>/<id>.json|.jar · libraries/ · assets/{indexes,objects,log_configs}/
-
 use crate::dl;
 use futures_util::StreamExt;
 use regex::Regex;
@@ -17,20 +11,15 @@ pub const MANIFEST_URL: &str = "https://launchermeta.mojang.com/mc/game/version_
 const LIBRARIES_URL: &str = "https://libraries.minecraft.net/";
 const ASSETS_URL: &str = "https://resources.download.minecraft.net/";
 
-/// Aviso de progreso: (texto, porcentaje 0-100 o None si no se puede calcular).
 pub type Progress<'a> = &'a (dyn Fn(String, Option<f64>) + Send + Sync);
 
-/// Sistema donde se ejecuta (para las reglas `os` de Mojang).
 pub struct Env<'a> {
     pub os: &'a str,
     pub arch: &'a str,
     pub os_version: &'a str,
 }
 
-/// Nova Client solo se publica para Windows de 64 bits.
 pub const WINDOWS: Env<'static> = Env { os: "windows", arch: "x64", os_version: "10.0" };
-
-// ───────────────────────── Reglas ─────────────────────────
 
 fn rule_matches(rule: &Value, env: &Env, features: &HashSet<String>) -> bool {
     if let Some(os) = rule.get("os") {
@@ -61,7 +50,6 @@ fn rule_matches(rule: &Value, env: &Env, features: &HashSet<String>) -> bool {
     true
 }
 
-/// Sin reglas = permitido. Con reglas: manda la última que coincide (`allow` / `disallow`); si ninguna coincide, no.
 pub fn rules_allow(rules: Option<&Value>, env: &Env, features: &HashSet<String>) -> bool {
     let list = match rules.and_then(|r| r.as_array()) {
         Some(a) if !a.is_empty() => a,
@@ -76,8 +64,6 @@ pub fn rules_allow(rules: Option<&Value>, env: &Env, features: &HashSet<String>)
     allowed
 }
 
-// ───────────────────────── Versiones ─────────────────────────
-
 pub fn version_json_path(root: &Path, id: &str) -> PathBuf {
     root.join("versions").join(id).join(format!("{id}.json"))
 }
@@ -86,7 +72,6 @@ pub fn version_jar_path(root: &Path, id: &str) -> PathBuf {
     root.join("versions").join(id).join(format!("{id}.jar"))
 }
 
-/// Une el JSON de una versión con el de su padre (`inheritsFrom`): lo del hijo manda, las listas se suman.
 pub fn merge_versions(parent: Value, child: Value) -> Value {
     let mut out = match parent {
         Value::Object(m) => m,
@@ -121,7 +106,6 @@ pub fn merge_versions(parent: Value, child: Value) -> Value {
     Value::Object(out)
 }
 
-/// JSON completo de la versión (con la cadena de herencia resuelta). `jarId` = versión cuyo `.jar` se ejecuta.
 pub fn load_version(root: &Path, id: &str) -> Result<Value, String> {
     fn go(root: &Path, id: &str, depth: u8) -> Result<Value, String> {
         if depth > 5 {
@@ -141,7 +125,7 @@ pub fn load_version(root: &Path, id: &str) -> Result<Value, String> {
             }
             None => {
                 let mut j = json;
-                // Algunas versiones traen `jar` propio; si no, el .jar es el de la propia versión.
+
                 let jar = j["jar"].as_str().unwrap_or(id).to_string();
                 j["jarId"] = Value::String(jar);
                 Ok(j)
@@ -151,8 +135,6 @@ pub fn load_version(root: &Path, id: &str) -> Result<Value, String> {
     go(root, id, 0)
 }
 
-/// Descarga `versions/<id>/<id>.json` desde el manifiesto de Mojang si todavía no está. Devuelve el tipo (`release`…).
-/// JSON de la versión ya descargado (las versiones publicadas no cambian: no hace falta internet).
 fn local_version_json(root: &Path, id: &str) -> Option<Value> {
     let t = std::fs::read_to_string(version_json_path(root, id)).ok()?;
     serde_json::from_str::<Value>(t.trim_start_matches('\u{feff}')).ok().filter(|v| v["id"].is_string())
@@ -180,7 +162,6 @@ pub async fn ensure_vanilla_json(root: &Path, id: &str) -> Result<String, String
     Ok(kind)
 }
 
-/// Versión mayor de Java que pide Mojang para esa versión (8 si no lo dice).
 pub async fn required_java_major(root: &Path, id: &str) -> Result<u32, String> {
     if let Some(v) = local_version_json(root, id) {
         return Ok(v["javaVersion"]["majorVersion"].as_u64().unwrap_or(8) as u32);
@@ -196,20 +177,17 @@ pub async fn required_java_major(root: &Path, id: &str) -> Result<u32, String> {
     Ok(meta["javaVersion"]["majorVersion"].as_u64().unwrap_or(8) as u32)
 }
 
-// ───────────────────────── Librerías ─────────────────────────
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Lib {
-    /// Ruta relativa dentro de `libraries/`.
+
     pub rel: String,
     pub url: String,
     pub sha1: Option<String>,
     pub size: Option<u64>,
-    /// `Some(exclusiones)` = jar de nativos antiguo: se extrae a la carpeta de nativos en vez de ir al classpath.
+
     pub extract: Option<Vec<String>>,
 }
 
-/// «grupo:artefacto:versión[:clasificador][@ext]» → «grupo/artefacto/versión/artefacto-versión[-clasificador].ext»
 pub fn maven_path(name: &str, classifier: Option<&str>) -> Option<String> {
     let (coords, ext) = match name.split_once('@') {
         Some((c, e)) => (c, e),
@@ -228,7 +206,6 @@ pub fn maven_path(name: &str, classifier: Option<&str>) -> Option<String> {
     Some(format!("{}/{}/{}/{}", group.replace('.', "/"), artifact, version, file))
 }
 
-/// Clave para no repetir la misma librería con dos versiones: «grupo:artefacto[:clasificador]».
 fn dedupe_key(name: &str) -> String {
     let coords = name.split('@').next().unwrap_or(name);
     let p: Vec<&str> = coords.split(':').collect();
@@ -251,7 +228,6 @@ pub fn collect_libs(v: &Value, env: &Env, features: &HashSet<String>) -> Vec<Lib
             None => continue,
         };
 
-        // Nativos antiguos: «natives»: { "windows": "natives-windows" } + downloads.classifiers.
         let native_class = lib["natives"][env.os]
             .as_str()
             .map(|c| c.replace("${arch}", if env.arch == "x86" { "32" } else { "64" }));
@@ -283,7 +259,7 @@ pub fn collect_libs(v: &Value, env: &Env, features: &HashSet<String>) -> Vec<Lib
                 extract,
             },
             _ => {
-                // Sin bloque `downloads` (Fabric y otros mavens): se arma la ruta con las coordenadas.
+
                 let rel = match maven_path(name, classifier) {
                     Some(r) => r,
                     None => continue,
@@ -306,15 +282,12 @@ pub fn collect_libs(v: &Value, env: &Env, features: &HashSet<String>) -> Vec<Lib
     out
 }
 
-// ───────────────────────── Descargas ─────────────────────────
-
 struct Item {
     url: String,
     dest: PathBuf,
     sha1: Option<String>,
 }
 
-/// Descarga en paralelo lo que falta. `label` es el texto que ve el usuario («librerías», «recursos»…).
 async fn download_many(items: Vec<Item>, label: &str, concurrency: usize, progress: Progress<'_>) -> Result<(), String> {
     let total = items.len();
     if total == 0 {
@@ -338,7 +311,7 @@ async fn download_many(items: Vec<Item>, label: &str, concurrency: usize, progre
 }
 
 pub struct Prepared {
-    /// Versión que se lanza (la de Fabric, o la vanilla).
+
     pub version: Value,
     pub classpath: Vec<PathBuf>,
     pub natives_dir: PathBuf,
@@ -346,13 +319,11 @@ pub struct Prepared {
     pub logging_arg: Option<String>,
 }
 
-/// Descarga todo lo que la versión necesita (cliente, librerías, recursos, configuración de logs) y extrae nativos.
 pub async fn prepare(root: &Path, launch_id: &str, env: &Env<'_>, progress: Progress<'_>) -> Result<Prepared, String> {
     let version = load_version(root, launch_id)?;
     let features: HashSet<String> = HashSet::new();
     let jar_id = version["jarId"].as_str().unwrap_or(launch_id).to_string();
 
-    // Cliente
     let jar = version_jar_path(root, &jar_id);
     let client = &version["downloads"]["client"];
     if !dl::present(&jar, client["size"].as_u64()) {
@@ -366,7 +337,6 @@ pub async fn prepare(root: &Path, launch_id: &str, env: &Env<'_>, progress: Prog
         .await?;
     }
 
-    // Librerías
     let libs = collect_libs(&version, env, &features);
     let lib_dir = root.join("libraries");
     let missing: Vec<Item> = libs
@@ -376,14 +346,12 @@ pub async fn prepare(root: &Path, launch_id: &str, env: &Env<'_>, progress: Prog
         .collect();
     download_many(missing, "librerías", 12, progress).await?;
 
-    // Nativos (formato antiguo): se extraen a versions/<id>/natives
     let natives_dir = root.join("versions").join(launch_id).join("natives");
     std::fs::create_dir_all(&natives_dir).map_err(|e| e.to_string())?;
     for lib in libs.iter().filter(|l| l.extract.is_some()) {
         extract_natives(&lib_dir.join(&lib.rel), &natives_dir, lib.extract.as_deref().unwrap_or(&[]))?;
     }
 
-    // Recursos
     let index_id = version["assetIndex"]["id"]
         .as_str()
         .or_else(|| version["assets"].as_str())
@@ -415,7 +383,6 @@ pub async fn prepare(root: &Path, launch_id: &str, env: &Env<'_>, progress: Prog
     }
     download_many(wanted, "recursos", 32, progress).await?;
 
-    // Configuración de logs (silencia el exploit log4j de las versiones antiguas y deja el log limpio)
     let mut logging_arg = None;
     let log_client = &version["logging"]["client"];
     if let (Some(file_id), Some(url), Some(arg)) =
@@ -428,7 +395,6 @@ pub async fn prepare(root: &Path, launch_id: &str, env: &Env<'_>, progress: Prog
         logging_arg = Some(arg.replace("${path}", &dest.to_string_lossy()));
     }
 
-    // Classpath: librerías normales + el .jar del cliente al final
     let mut classpath: Vec<PathBuf> = libs.iter().filter(|l| l.extract.is_none()).map(|l| lib_dir.join(&l.rel)).collect();
     classpath.push(jar);
 
@@ -447,7 +413,7 @@ fn extract_natives(jar: &Path, dest: &Path, exclude: &[String]) -> Result<(), St
         if name.starts_with("META-INF/") || exclude.iter().any(|x| name.starts_with(x.as_str())) {
             continue;
         }
-        // Solo el nombre del archivo: evita rutas con «..» dentro del zip.
+
         let leaf = match Path::new(&name).file_name() {
             Some(l) => l.to_owned(),
             None => continue,
@@ -459,9 +425,6 @@ fn extract_natives(jar: &Path, dest: &Path, exclude: &[String]) -> Result<(), St
     Ok(())
 }
 
-// ───────────────────────── Línea de comandos ─────────────────────────
-
-/// Reemplaza `${nombre}` por su valor. Si el nombre no existe se deja tal cual (igual que el launcher de Mojang).
 pub fn substitute(s: &str, vars: &HashMap<String, String>) -> String {
     let re = Regex::new(r"\$\{([^}]+)\}").expect("regex fija");
     re.replace_all(s, |c: &regex::Captures| vars.get(&c[1]).cloned().unwrap_or_else(|| c[0].to_string()))
@@ -489,7 +452,6 @@ fn expand_args(list: &[Value], env: &Env, features: &HashSet<String>, vars: &Has
     out
 }
 
-/// Argumentos de JVM y del juego según el JSON de la versión (formato nuevo `arguments` o antiguo `minecraftArguments`).
 pub fn build_args(v: &Value, env: &Env, features: &HashSet<String>, vars: &HashMap<String, String>) -> (Vec<String>, Vec<String>) {
     if let Some(args) = v.get("arguments").filter(|a| a.is_object()) {
         let jvm = expand_args(args["jvm"].as_array().map(|a| a.as_slice()).unwrap_or(&[]), env, features, vars);
@@ -563,7 +525,7 @@ mod tests {
         let rels: Vec<&str> = libs.iter().map(|l| l.rel.as_str()).collect();
         assert_eq!(rels, vec![
             "net/fabricmc/fabric-loader/0.16.9/fabric-loader-0.16.9.jar",
-            "org/ow2/asm/asm/9.7/asm-9.7.jar", // la primera (Fabric) gana; asm 9.6 se descarta
+            "org/ow2/asm/asm/9.7/asm-9.7.jar",
             "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3.jar",
             "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-windows.jar",
         ]);

@@ -1,14 +1,4 @@
 'use strict';
-// Nova Net: el servidor de amistades de Nova Client.
-//
-// Qué hace:
-//   · Verifica la cuenta de Minecraft de cada jugador con Mojang (hasJoined), sin pedirle contraseñas.
-//   · Guarda solicitudes de amistad, amigos y mensajes directos entre amigos.
-//   · Sabe quién está jugando con Nova Client ahora mismo, para mostrar el logo en el TAB y sobre el nombre.
-//
-// Sin dependencias: solo Node 18 o más nuevo.   Uso:  node server/server.js
-// Variables: PORT (8787) · NOVANET_DATA (server/data/novanet.json) · TRUST_PROXY=1 si va detrás de nginx / Render / etc.
-//            NOVANET_DEV_AUTH=1  SOLO PARA PROBAR EN LOCAL: acepta cualquier nombre sin verificarlo con Mojang.
 
 const http = require('http');
 const fs = require('fs');
@@ -22,7 +12,7 @@ const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 
 const SESSION_TTL = 12 * 3600 * 1000;
 const NONCE_TTL = 60 * 1000;
-const PRESENCE_TTL = 45 * 1000;      // sin latido en 45 s = desconectado
+const PRESENCE_TTL = 45 * 1000;
 const MSG_TTL = 7 * 24 * 3600 * 1000;
 const MAX_FRIENDS = 200;
 const MAX_PENDING = 100;
@@ -30,14 +20,11 @@ const MAX_INBOX = 100;
 const MAX_BODY = 32 * 1024;
 const NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
 
-// ── Datos ──
-// users[uuid] = { uuid, name, friends: [uuid], incoming: [uuid], outgoing: [uuid], lastSeen, lastServer }
-// inbox[uuid] = [{ id, from: uuid, text, ts }]
 let db = { users: {}, inbox: {}, nextMsg: 1 };
-const byName = new Map();            // nombre en minúsculas -> uuid
-const sessions = new Map();          // token -> { uuid, exp }
-const nonces = new Map();            // nonce -> exp
-const presence = new Map();          // uuid -> { at, server, mc }
+const byName = new Map();
+const sessions = new Map();
+const nonces = new Map();
+const presence = new Map();
 
 function load() {
   try {
@@ -70,7 +57,6 @@ function saveNow() {
   }
 }
 
-// ── Límites de uso ──
 const hits = new Map();
 function limited(key, max, windowMs) {
   const now = Date.now();
@@ -81,7 +67,6 @@ function limited(key, max, windowMs) {
   return h.n > max;
 }
 
-// ── Utilidades ──
 function send(res, code, obj) {
   const body = JSON.stringify(obj);
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body), 'Cache-Control': 'no-store' });
@@ -135,7 +120,6 @@ function isOnline(uuid) {
 const pull = (arr, v) => { const i = arr.indexOf(v); if (i >= 0) arr.splice(i, 1); };
 const push = (arr, v) => { if (!arr.includes(v)) arr.push(v); };
 
-// ── Mojang ──
 async function verifyWithMojang(name, nonce) {
   if (DEV_AUTH) {
     return { id: crypto.createHash('sha1').update(name.toLowerCase()).digest('hex').slice(0, 32), name };
@@ -148,7 +132,6 @@ async function verifyWithMojang(name, nonce) {
   return { id: j.id.toLowerCase(), name: j.name };
 }
 
-// ── Rutas ──
 const routes = {};
 
 routes['GET /v1/health'] = async (req, res) => send(res, 200, { ok: true, name: 'Nova Net', v: 1 });
@@ -174,7 +157,7 @@ routes['POST /v1/auth/login'] = async (req, res, body, ip) => {
   let u = db.users[prof.id];
   if (!u) u = db.users[prof.id] = { uuid: prof.id, name: prof.name, friends: [], incoming: [], outgoing: [], lastSeen: 0, lastServer: '' };
   u.name = prof.name;
-  // Si otra cuenta tenía este nombre (cambió de nombre en Mojang), deja de tenerlo.
+
   const holder = byName.get(prof.name.toLowerCase());
   if (holder && holder !== u.uuid && db.users[holder]) {
     db.users[holder].name = '?' + holder.slice(0, 6);
@@ -187,7 +170,6 @@ routes['POST /v1/auth/login'] = async (req, res, body, ip) => {
   send(res, 200, { token, name: u.name, expiresIn: SESSION_TTL / 1000 });
 };
 
-// Todo lo de abajo exige sesión
 function authed(handler) {
   return async (req, res, body, ip) => {
     const m = /^Bearer ([a-f0-9]{48})$/.exec(String(req.headers.authorization || ''));
@@ -217,14 +199,12 @@ routes['POST /v1/sync'] = authed(async (req, res, body, me) => {
   const incoming = me.incoming.map((id) => db.users[id]).filter(Boolean).map((u) => u.name);
   const outgoing = me.outgoing.map((id) => db.users[id]).filter(Boolean).map((u) => u.name);
 
-  // Mensajes: confirma (borra) lo que el cliente dice haber recibido y devuelve lo nuevo.
   const after = Number.isFinite(body.after) ? body.after : 0;
   const now = Date.now();
   const box = (db.inbox[me.uuid] || []).filter((m) => m.id > after && now - m.ts < MSG_TTL);
   if (box.length) db.inbox[me.uuid] = box; else delete db.inbox[me.uuid];
   const messages = box.map((m) => ({ id: m.id, from: (db.users[m.from] || {}).name || '?', text: m.text, ts: m.ts }));
 
-  // Quién de la lista del TAB usa Nova Client ahora
   const nova = [];
   if (Array.isArray(body.names)) {
     for (const n of body.names.slice(0, 200)) {
@@ -254,14 +234,14 @@ routes['POST /v1/friends/request'] = authed(async (req, res, body, me) => {
   const name = cleanName(body.name);
   if (!name) return fail(res, 400, 'invalid_name');
   const other = userByName(name);
-  if (!other) return fail(res, 404, 'not_found');           // nunca usó Nova Client
+  if (!other) return fail(res, 404, 'not_found');
   if (other.uuid === me.uuid) return fail(res, 400, 'self');
   if (me.friends.includes(other.uuid)) return fail(res, 400, 'already_friends');
   if (me.outgoing.includes(other.uuid)) return fail(res, 400, 'already_requested');
   if (me.friends.length >= MAX_FRIENDS) return fail(res, 400, 'too_many_friends');
   if (other.incoming.length >= MAX_PENDING || me.outgoing.length >= MAX_PENDING) return fail(res, 400, 'too_many_pending');
   if (me.incoming.includes(other.uuid)) {
-    // Los dos se pidieron amistad: quedan amigos
+
     pull(me.incoming, other.uuid); pull(other.outgoing, me.uuid);
     push(me.friends, other.uuid); push(other.friends, me.uuid);
     save();
@@ -312,7 +292,6 @@ routes['POST /v1/msg'] = authed(async (req, res, body, me) => {
   send(res, 200, { ok: true, id: msg.id, ts: msg.ts });
 });
 
-// ── Servidor ──
 const server = http.createServer(async (req, res) => {
   const url = (req.url || '/').split('?')[0];
   const handler = routes[req.method + ' ' + url];

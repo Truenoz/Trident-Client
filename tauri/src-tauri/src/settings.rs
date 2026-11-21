@@ -1,6 +1,3 @@
-// Ajustes del launcher: mismo archivo (settings.json) y mismos valores que la versión Electron,
-// así quien ya usa Nova Client conserva su configuración.
-
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::Path;
@@ -34,7 +31,6 @@ fn defaults() -> Map<String, Value> {
     }
 }
 
-/// Valores por defecto + lo guardado en `settings.json`.
 pub fn read(user_dir: &Path) -> Map<String, Value> {
     let mut m = defaults();
     if let Ok(text) = fs::read_to_string(user_dir.join("settings.json")) {
@@ -48,7 +44,6 @@ pub fn read(user_dir: &Path) -> Map<String, Value> {
     m
 }
 
-/// Mezcla `patch` con lo guardado y escribe el archivo. Devuelve los ajustes resultantes.
 pub fn write(user_dir: &Path, patch: &Value) -> Result<Map<String, Value>, String> {
     let mut m = read(user_dir);
     if let Value::Object(p) = patch {
@@ -57,7 +52,6 @@ pub fn write(user_dir: &Path, patch: &Value) -> Result<Map<String, Value>, Strin
         }
     }
 
-    // La RAM va de 1 a 64 GB; si el valor no es un número válido, 4 GB.
     let ram = m
         .get("ramGB")
         .and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.trim().parse::<f64>().ok())))
@@ -73,7 +67,6 @@ pub fn write(user_dir: &Path, patch: &Value) -> Result<Map<String, Value>, Strin
     Ok(m)
 }
 
-/// «Restablecer ajustes»: borra el archivo y devuelve los valores por defecto.
 pub fn reset(user_dir: &Path) -> Map<String, Value> {
     let _ = fs::remove_file(user_dir.join("settings.json"));
     read(user_dir)

@@ -1,23 +1,23 @@
 'use strict';
-// Fondo rotativo del inicio: cambia entre las fotos de backgrounds/ con un fundido suave.
+
 (function () {
-  const TOTAL = 15;            // bg-01.jpg … bg-15.jpg
-  const INTERVAL = 8000;       // tiempo que se ve cada fondo (ms)
+  const TOTAL = 15;
+  const INTERVAL = 8000;
   const a = document.getElementById('hero-bg-a');
   const b = document.getElementById('hero-bg-b');
   if (!a || !b) return;
 
   const files = [];
   for (let i = 1; i <= TOTAL; i++) files.push('backgrounds/bg-' + String(i).padStart(2, '0') + '.jpg');
-  // Orden aleatorio, sin repetir hasta haber mostrado todas.
+
   for (let i = files.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [files[i], files[j]] = [files[j], files[i]];
   }
 
   const layers = [a, b];
-  let idx = 0;       // foto actual
-  let front = 0;     // capa visible
+  let idx = 0;
+  let front = 0;
   let timer = null;
 
   function preload(src) {
@@ -32,11 +32,11 @@
   function paint(layer, src) { layer.style.backgroundImage = 'url("' + src + '")'; }
 
   async function next() {
-    if (document.body.classList.contains('game-running')) return;   // con el juego abierto no se gasta nada en esto
+    if (document.body.classList.contains('game-running')) return;
     const nextIdx = (idx + 1) % files.length;
     const ok = await preload(files[nextIdx]);
     idx = nextIdx;
-    if (!ok) return;                       // si una foto falla, se salta
+    if (!ok) return;
     const incoming = layers[1 - front];
     paint(incoming, files[idx]);
     incoming.classList.add('show');
@@ -49,11 +49,10 @@
   function schedule() {
     clearInterval(timer);
     timer = null;
-    if (document.hidden) return;   // sin rotar solo si la ventana está oculta (con «Reducir animaciones» rota igual, sin fundido)
+    if (document.hidden) return;
     timer = setInterval(next, INTERVAL);
   }
 
-  // Primera foto
   preload(files[0]).then(() => {
     paint(a, files[0]);
     a.classList.add('show');

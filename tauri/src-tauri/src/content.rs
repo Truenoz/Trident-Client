@@ -1,10 +1,3 @@
-// Contenido de los perfiles: mods y paquetes de recursos, Modrinth, mods de rendimiento,
-// mundos, registros, exportar / importar / compartir perfiles y sincronización automática.
-// Formatos compatibles con la antigua versión Electron (nova-content.json, .novaprofile, códigos NOVA1:).
-//
-// Todo trabaja sobre carpetas y sobre `profiles.json` (vía `profiles.rs`): no guarda estado propio salvo
-// una caché de lectura de jars y un registro de «identificaciones en curso».
-
 use crate::{dl, modcompat, profiles};
 use base64::Engine;
 use regex::Regex;
@@ -20,8 +13,6 @@ use std::time::{Duration, UNIX_EPOCH};
 
 const MODRINTH: &str = "https://api.modrinth.com/v2";
 
-/// Mods de rendimiento: se instalan siempre en todos los perfiles con Fabric (no se pueden apagar).
-/// (clave, slug de Modrinth, nombre). Si un mod no tiene versión para ese Minecraft, se omite.
 pub const PERF_MODS: &[(&str, &str, &str)] = &[
     ("sodium", "sodium", "Sodium"),
     ("iris", "iris", "Iris Shaders"),
@@ -33,13 +24,12 @@ pub const PERF_MODS: &[(&str, &str, &str)] = &[
     ("modmenu", "modmenu", "Mod Menu"),
 ];
 
-/// Lo que necesitan las funciones de este módulo: carpetas, registro y aviso de progreso.
 #[derive(Clone)]
 pub struct Env {
     pub user_dir: PathBuf,
     pub game_dir: PathBuf,
     pub log: Arc<dyn Fn(String) + Send + Sync>,
-    /// (id de perfil, texto) → evento `profile:progress`.
+
     pub progress: Arc<dyn Fn(String, String) + Send + Sync>,
 }
 
@@ -63,7 +53,6 @@ fn truthy(v: &Value) -> bool {
     }
 }
 
-/// Quita caracteres que Windows no permite en nombres de archivo.
 pub fn safe_name(name: &str) -> String {
     let s: String = name
         .chars()
@@ -84,8 +73,6 @@ fn strip_disabled(s: &str) -> &str {
 fn has_ext(name: &str, ext: &str) -> bool {
     name.to_lowercase().ends_with(ext)
 }
-
-// ───────────────────────── Índice de contenido (nova-content.json) ─────────────────────────
 
 #[derive(Default, Clone)]
 pub struct Index {
@@ -110,8 +97,6 @@ pub fn write_index(dir: &Path, idx: &Index) -> Result<(), String> {
     let text = serde_json::to_string_pretty(&v).map_err(|e| e.to_string())?;
     std::fs::write(dir.join("nova-content.json"), text).map_err(|e| e.to_string())
 }
-
-// ───────────────────────── Lista y administración de archivos ─────────────────────────
 
 type JarCache = Mutex<HashMap<PathBuf, (u128, modcompat::JarInfo)>>;
 
@@ -208,7 +193,6 @@ pub fn list_content(env: &Env, id: &str) -> Result<Value, String> {
     Ok(Value::Array(out))
 }
 
-/// (subcarpeta, nombre sin .disabled, ruta completa) del archivo. Solo se usa el nombre: nunca una ruta de la interfaz.
 fn content_path(inst: &Path, file: &str) -> (&'static str, String, PathBuf) {
     let base = base_name(file);
     let clean = strip_disabled(&base).to_string();
@@ -245,7 +229,6 @@ pub fn remove_content(env: &Env, id: &str, file: &str) -> Result<(), String> {
     write_index(&dir, &idx)
 }
 
-/// Copia los archivos al perfil y avisa cuáles mods no sirven para su versión / cargador.
 pub fn add_local(env: &Env, id: &str, paths: &[String]) -> Result<Value, String> {
     let p = env.profile(id)?;
     let dir = inst_of(&p);
@@ -289,8 +272,6 @@ pub fn copy_from(env: &Env, id: &str, source_id: &str) -> Result<Value, String> 
     write_index(&to, &b)?;
     env.profile(id)
 }
-
-// ───────────────────────── Modrinth ─────────────────────────
 
 fn api() -> String {
     if cfg!(test) {
@@ -376,7 +357,6 @@ fn installed_projects(dir: &Path) -> HashSet<String> {
         .collect()
 }
 
-/// Buscador dentro de un perfil (versión y cargador del perfil).
 pub async fn search(env: &Env, id: &str, q: &Value) -> Result<Value, String> {
     let p = env.profile(id)?;
     let kind = if q["type"].as_str() == Some("resourcepack") { "resourcepack" } else { "mod" };
@@ -412,7 +392,6 @@ fn clean_list(v: &Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Buscador global de la página «Modificaciones». Los filtros llegan desde la interfaz.
 pub async fn browse(env: &Env, q: &Value) -> Result<Value, String> {
     let kind = q["type"].as_str().unwrap_or("mod");
     let mut facets = vec![vec![format!("project_type:{kind}")]];
@@ -454,13 +433,9 @@ pub async fn browse(env: &Env, q: &Value) -> Result<Value, String> {
     Ok(json!({ "total": r["total_hits"], "hits": hits }))
 }
 
-/// Algunos mods (p. ej. ModernFix) marcan en Modrinth como «compatible» un build hecho para otra versión
-/// de Minecraft ("5.20.3+mc1.21.4" para la 1.21.8) y después fallan al arrancar. Si el nombre de la versión
-/// o del archivo trae una versión de Minecraft explícita ("+mc1.21.4", "+1.21.4", "-mc1.21.4") y no es la
-/// del perfil, ese build no sirve.
 pub fn targets_other_mc(label: &str, mc: &str) -> bool {
     static R: OnceLock<Regex> = OnceLock::new();
-    // Sin «lookahead» (Rust no lo tiene): se comprueba aparte que no siga otro dígito.
+
     let re = R.get_or_init(|| Regex::new(r"(?i)[+\-_](?:mc)?(1\.\d{1,2}(?:\.\d{1,2})?)").expect("regex válida"));
     let mut pos = 0;
     while pos <= label.len() {
@@ -501,7 +476,6 @@ async fn best_version(p: &Value, project_id: &str, kind: &str, strict: bool) -> 
     Ok(pick)
 }
 
-/// Descarga una versión de Modrinth a la carpeta del perfil y la anota en el índice. Devuelve el nombre del archivo.
 async fn install_version(p: &Value, version: &Value, kind: &str, extra: Value) -> Result<String, String> {
     let dir = inst_of(p);
     let sub = match kind {
@@ -541,7 +515,6 @@ async fn project_info(project_id: &str) -> Result<(String, Value), String> {
     Ok((pr["title"].as_str().unwrap_or("").to_string(), pr["icon_url"].as_str().map_or(Value::Null, |s| json!(s))))
 }
 
-/// Instala un proyecto y sus dependencias obligatorias. Devuelve los títulos instalados.
 pub fn install_project<'a>(
     env: &'a Env,
     id: &'a str,
@@ -575,7 +548,7 @@ pub fn install_project<'a>(
                     .unwrap_or("")
                     .to_string()
             }
-            Err(_) => String::new(), // el autor es opcional
+            Err(_) => String::new(),
         };
         let mut meta = json!({ "title": title, "icon": icon, "author": author });
         if let (Some(m), Some(e)) = (meta.as_object_mut(), extra.as_object()) {
@@ -589,7 +562,7 @@ pub fn install_project<'a>(
             for dep in version["dependencies"].as_array().cloned().unwrap_or_default() {
                 let Some(dep_id) = dep["project_id"].as_str() else { continue };
                 if dep["dependency_type"].as_str() != Some("required") || dep_id.eq_ignore_ascii_case("fabric-api") {
-                    continue; // Fabric API se instala aparte
+                    continue;
                 }
                 match install_project(env, id, dep_id, "mod", json!({ "dependency": true }), depth + 1).await {
                     Ok(more) => done.extend(more),
@@ -615,9 +588,6 @@ fn sha1_file(path: &Path) -> Result<String, String> {
     Ok(hex::encode(h.finalize()))
 }
 
-/// Reconoce los archivos puestos a mano que en realidad vienen de Modrinth: se compara el hash (SHA-1) de cada
-/// archivo con el de Modrinth. Los que coinciden pasan a figurar como Modrinth y ya pueden actualizarse.
-/// Lo que no coincide se recuerda para no volver a consultarlo mientras el archivo no cambie.
 pub async fn identify_local(env: &Env, id: &str) -> Result<u32, String> {
     static BUSY: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
     let busy = BUSY.get_or_init(|| Mutex::new(HashSet::new()));
@@ -649,7 +619,7 @@ async fn identify_inner(env: &Env, id: &str) -> Result<u32, String> {
             }
             let key = format!("{sub}/{base}");
             if idx.files.contains_key(&key) {
-                continue; // ya se sabe de dónde viene
+                continue;
             }
             let Ok(st) = std::fs::metadata(entry.path()) else { continue };
             if !st.is_file() {
@@ -709,13 +679,12 @@ async fn identify_inner(env: &Env, id: &str) -> Result<u32, String> {
     Ok(n)
 }
 
-/// Busca versiones nuevas (compatibles con el perfil) de lo que vino de Modrinth: [(clave, versión nueva)].
 pub async fn check_updates(env: &Env, id: &str) -> Result<Vec<(String, Value)>, String> {
     let p = env.profile(id)?;
     let dir = inst_of(&p);
     let idx = read_index(&dir);
     let mc = p["mc"].as_str().unwrap_or("");
-    // Los mods se filtran por cargador; los paquetes de recursos no (en Modrinth su «cargador» es «minecraft»).
+
     let mut mods: HashMap<String, String> = HashMap::new();
     let mut other: HashMap<String, String> = HashMap::new();
     for (key, meta) in &idx.files {
@@ -801,7 +770,6 @@ pub async fn update_content(env: &Env, id: &str, file: &str) -> Result<Value, St
     }
 }
 
-/// Actualiza todo lo que se pueda. No falla: es para la sincronización automática antes de jugar.
 pub async fn sync_all(env: &Env, id: &str) -> u32 {
     let p = match env.profile(id) {
         Ok(p) => p,
@@ -822,8 +790,6 @@ pub async fn sync_all(env: &Env, id: &str) -> u32 {
         }
     }
 }
-
-// ───────────────────────── Rendimiento ─────────────────────────
 
 pub fn get_perf(env: &Env, id: &str) -> Result<Value, String> {
     let p = env.profile(id)?;
@@ -867,7 +833,6 @@ fn remove_perf_files(dir: &Path, only: Option<&str>) {
     let _ = write_index(dir, &idx);
 }
 
-/// Instala los mods de rendimiento que falten. Cada uno falla por separado (sin internet se juega igual).
 pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
     let p = env.profile(id)?;
     if !is_fabric(&p) {
@@ -875,7 +840,7 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
     }
     let dir = inst_of(&p);
     let mc = p["mc"].as_str().unwrap_or("").to_string();
-    // Mods que estaban en la lista vieja (ModernFix, Dynamic FPS…) y ya no: se quitan.
+
     let old: Vec<String> = read_index(&dir)
         .files
         .values()
@@ -889,7 +854,7 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
         let idx = read_index(&dir);
         let tag = format!("perf:{key}");
         let have: Vec<(&String, &Value)> = idx.files.iter().filter(|(_, f)| f["managed"].as_str() == Some(tag.as_str())).collect();
-        // Un build instalado para otra versión de Minecraft se quita (hacía fallar el juego al arrancar).
+
         let wrong = have.iter().any(|(k, f)| {
             targets_other_mc(f["versionNumber"].as_str().unwrap_or(""), &mc) || targets_other_mc(&base_name(k), &mc)
         });
@@ -899,7 +864,7 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
         } else if !have.is_empty() {
             continue;
         }
-        // Si hace poco se vio que no existe para esta versión, no se vuelve a preguntar en cada «Jugar».
+
         let none_key = format!("perf-none:{slug}:{mc}");
         if crate::dl::checked_recently(&none_key, 24) {
             continue;
@@ -921,8 +886,6 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
     }
     Ok(())
 }
-
-// ───────────────────────── Mundos y registros ─────────────────────────
 
 pub fn list_worlds(env: &Env, id: &str) -> Result<Value, String> {
     let saves = inst_of(&env.profile(id)?).join("saves");
@@ -950,12 +913,10 @@ pub fn list_worlds(env: &Env, id: &str) -> Result<Value, String> {
     Ok(Value::Array(out.into_iter().map(|x| x.1).collect()))
 }
 
-/// Carpeta de un mundo (solo el nombre, nunca una ruta de la interfaz).
 pub fn world_dir(env: &Env, id: &str, name: &str) -> Result<PathBuf, String> {
     Ok(inst_of(&env.profile(id)?).join("saves").join(base_name(name)))
 }
 
-/// Últimos 200 KB de logs/latest.log del perfil.
 pub fn read_log(env: &Env, id: &str) -> Result<String, String> {
     let file = inst_of(&env.profile(id)?).join("logs").join("latest.log");
     let read = || -> std::io::Result<String> {
@@ -969,8 +930,6 @@ pub fn read_log(env: &Env, id: &str) -> Result<String, String> {
     };
     Ok(read().unwrap_or_default())
 }
-
-// ───────────────────────── Exportar / importar / compartir ─────────────────────────
 
 pub fn snapshot(env: &Env, id: &str) -> Result<Value, String> {
     let p = env.profile(id)?;
@@ -997,7 +956,7 @@ pub fn snapshot(env: &Env, id: &str) -> Result<Value, String> {
         "mc": p["mc"],
         "loader": p["loader"],
         "nova": truthy(&p["nova"]),
-        // Para launchers viejos: los mods de rendimiento ahora están siempre activos.
+
         "perf": { "master": true, "off": [] },
         "content": content
     }))
@@ -1008,7 +967,6 @@ pub fn export_to_file(env: &Env, id: &str, path: &Path) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| e.to_string())
 }
 
-/// Código para compartir: «NOVA1:» + zlib + base64url (el mismo formato que la versión Electron).
 pub fn share_code(env: &Env, id: &str) -> Result<String, String> {
     use flate2::{write::ZlibEncoder, Compression};
     use std::io::Write;
@@ -1081,8 +1039,6 @@ pub async fn import_data(env: &Env, data: &Value) -> Result<Value, String> {
     Ok(json!({ "profile": env.profile(&id)?, "failed": failed }))
 }
 
-// ───────────────────────── Pruebas ─────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1095,7 +1051,7 @@ mod tests {
         assert!(targets_other_mc("modernfix-fabric-5.20.3+1.21.4.jar", "1.21.8"));
         assert!(!targets_other_mc("sodium-fabric-0.6.13+mc1.21.8.jar", "1.21.8"));
         assert!(targets_other_mc("mod-1.0-mc1.20.1", "1.21"));
-        // Sin versión de Minecraft explícita, o con un número largo que no es una versión de Minecraft.
+
         assert!(!targets_other_mc("0.5.13", "1.21.8"));
         assert!(!targets_other_mc("mod-1.2.345", "1.21.8"));
         assert!(!targets_other_mc("", "1.21.8"));
@@ -1123,7 +1079,6 @@ mod tests {
         assert!(parse_share("hola").is_err());
     }
 
-    // Código generado por la versión Electron (zlib.deflateSync + base64url): se lee igual aquí.
     #[test]
     fn lee_codigo_de_electron() {
         let code = "NOVA1:eJwljrFqw0AQRH8lTL0WKLjaOincuXJjVJxPe-TM3a1YrQ1GqPC35ceClHKGx5tZkNRqcDCaPsNhMk25CAhPcE9ooQoYXzKP8vFdJLppA6FGMPrus--OIBQNoxgYKdwsR9AuA7s9hDCJJfCCGmbfqP9WUwJfUbL_5EfFsBKiNpfm4OsCf03bcNURhMn0LtFPIxjn7ZvYnLXt-QKCZy8b_fvGOqx_F4dEPw";
@@ -1165,7 +1120,7 @@ mod tests {
 
         let l = list_content(&e, &id).unwrap();
         let names: Vec<&str> = l.as_array().unwrap().iter().map(|x| x["name"].as_str().unwrap()).collect();
-        assert_eq!(names, ["alfa", "carpeta", "pack", "zeta"]); // sin fabric-api, ordenado
+        assert_eq!(names, ["alfa", "carpeta", "pack", "zeta"]);
         let alfa = &l[0];
         assert_eq!(alfa["compat"]["status"], "bad");
         assert_eq!(l[3]["compat"]["status"], "ok");
@@ -1179,7 +1134,7 @@ mod tests {
         toggle_content(&e, &id, "zeta.jar.disabled", true).unwrap();
         assert!(dir.join("mods/zeta.jar").exists());
 
-        remove_content(&e, &id, "../../zeta.jar").unwrap(); // solo cuenta el nombre
+        remove_content(&e, &id, "../../zeta.jar").unwrap();
         assert!(!dir.join("mods/zeta.jar").exists());
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -1230,9 +1185,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
-    // ── Modrinth falso (servidor HTTP local) ──
-
-    /// Levanta un servidor; `routes` recibe la URL base y devuelve (prefijo de ruta, cuerpo). Gana la primera coincidencia.
     fn serve(routes: impl FnOnce(&str) -> Vec<(String, Vec<u8>)>) -> String {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
@@ -1245,7 +1197,7 @@ mod tests {
                 loop {
                     let n = s.read(&mut buf).unwrap_or(0);
                     req.extend_from_slice(&buf[..n]);
-                    // Los cuerpos de los POST no se usan: cada ruta responde siempre lo mismo.
+
                     if n == 0 || String::from_utf8_lossy(&req).contains("\r\n\r\n") {
                         break;
                     }
@@ -1278,7 +1230,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
 
-        // «cool-mod» en versión 1 y 2, y una dependencia.
         let (j1, j2, jd) = (tmp.join("v1.jar"), tmp.join("v2.jar"), tmp.join("dep.jar"));
         jar(&j1, "coolmod", "1.0", "~1.21.4");
         jar(&j2, "coolmod", "2.0", "~1.21.4");
@@ -1303,7 +1254,7 @@ mod tests {
             let vd = ver("VD", "DEP", "1.0", "dep-1.0.jar", &cd, json!([]));
             let j = |v: Value| v.to_string().into_bytes();
             vec![
-                ("/v2/project/COOL/version".into(), j(json!([v1.clone()]))), // lo más nuevo «instalable» es la 1.0; la 2.0 llega como actualización
+                ("/v2/project/COOL/version".into(), j(json!([v1.clone()]))),
                 ("/v2/project/DEP/version".into(), j(json!([vd]))),
                 ("/v2/project/COOL/members".into(), j(json!([{ "role": "Owner", "user": { "username": "Ana" } }]))),
                 ("/v2/project/DEP/members".into(), b"[]".to_vec()),
@@ -1334,30 +1285,26 @@ mod tests {
         let id = p["id"].as_str().unwrap().to_string();
         let dir = inst_of(&p);
 
-        // Búsqueda
         let r = search(&e, &id, &json!({ "query": "cool" })).await.unwrap();
         assert_eq!(r["total"], 1);
         assert_eq!(r["hits"][0]["installed"], false);
         let r = browse(&e, &json!({ "query": "cool", "type": "mod", "profileId": id, "limit": 500 })).await.unwrap();
         assert_eq!(r["hits"][0]["follows"], 2);
 
-        // Instalar: el mod y su dependencia obligatoria (no Fabric API ni la opcional).
         let done = install_project(&e, &id, "COOL", "mod", json!({}), 0).await.unwrap();
         assert_eq!(done, ["Cool Mod", "Dep Mod"], "{:?}", logs.lock().unwrap());
         assert!(dir.join("mods/cool-1.0.jar").exists());
         assert!(dir.join("mods/dep-1.0.jar").exists());
-        assert!(install_project(&e, &id, "COOL", "mod", json!({}), 0).await.unwrap().is_empty()); // ya instalado
+        assert!(install_project(&e, &id, "COOL", "mod", json!({}), 0).await.unwrap().is_empty());
         let idx = read_index(&dir);
         assert_eq!(idx.files["mods/cool-1.0.jar"]["author"], "Ana");
         assert_eq!(idx.files["mods/dep-1.0.jar"]["dependency"], true);
 
-        // La lista muestra título, versión y origen Modrinth.
         let l = list_content(&e, &id).unwrap();
         let cool = l.as_array().unwrap().iter().find(|x| x["name"] == "Cool Mod").unwrap();
         assert_eq!(cool["source"], "Modrinth");
         assert_eq!(cool["version"], "1.0");
 
-        // Buscar y aplicar actualización (también con el mod desactivado).
         toggle_content(&e, &id, "cool-1.0.jar", false).unwrap();
         let ups = check_updates(&e, &id).await.unwrap();
         assert_eq!(ups.len(), 1);
@@ -1366,10 +1313,9 @@ mod tests {
         assert_eq!(r["updated"], true);
         assert_eq!(r["version"], "2.0");
         assert!(!dir.join("mods/cool-1.0.jar.disabled").exists());
-        assert!(dir.join("mods/cool-2.0.jar.disabled").exists()); // sigue desactivado
+        assert!(dir.join("mods/cool-2.0.jar.disabled").exists());
         assert_eq!(read_index(&dir).files["mods/cool-2.0.jar"]["versionId"], "V2");
 
-        // Identificar un archivo puesto a mano por su hash.
         let id2 = profiles::create(&e.user_dir, &e.game_dir, &json!({ "mc": "1.21.4", "loader": "fabric" })).unwrap();
         let id2 = id2["id"].as_str().unwrap().to_string();
         let dir2 = inst_of(&e.profile(&id2).unwrap());
@@ -1380,16 +1326,14 @@ mod tests {
         assert_eq!(i2.files["mods/a-mano.jar"]["projectId"], "COOL");
         assert_eq!(i2.files["mods/a-mano.jar"]["detected"], true);
         assert!(i2.unmatched.contains_key("mods/otro.jar"));
-        assert_eq!(identify_local(&e, &id2).await.unwrap(), 0); // lo no reconocido no se vuelve a consultar
+        assert_eq!(identify_local(&e, &id2).await.unwrap(), 0);
 
-        // Sincronización automática.
         assert_eq!(sync_all(&e, &id2).await, 1);
         assert!(dir2.join("mods/cool-2.0.jar").exists());
         assert!(!dir2.join("mods/a-mano.jar").exists());
 
-        // Exportar → importar en un perfil nuevo.
         let snap = snapshot(&e, &id).unwrap();
-        assert_eq!(snap["content"].as_array().unwrap().len(), 1); // la dependencia no se exporta
+        assert_eq!(snap["content"].as_array().unwrap().len(), 1);
         let code = share_code(&e, &id).unwrap();
         assert!(code.starts_with("NOVA1:"));
         let imported = import_data(&e, &parse_share(&code).unwrap()).await.unwrap();
@@ -1397,11 +1341,10 @@ mod tests {
         assert_eq!(imported["profile"]["name"], "Prueba");
         assert_eq!(imported["profile"]["origin"], "pack");
         let ndir = inst_of(&imported["profile"]);
-        assert!(ndir.join("mods/cool-1.0.jar").exists()); // V1 sirve para 1.21.4: se respeta la versión exportada
+        assert!(ndir.join("mods/cool-1.0.jar").exists());
         assert!(prog.lock().unwrap().iter().any(|t| t.starts_with("Instalando Cool Mod (1/1)")));
         assert_eq!(prog.lock().unwrap().last().unwrap(), "");
 
-        // Rendimiento: siempre activo; ningún mod de la lista existe en el servidor falso → se omiten sin fallar.
         ensure_perf(&e, &id).await.unwrap();
         let pf = get_perf(&e, &id).unwrap();
         assert_eq!(pf["mods"].as_array().unwrap().len(), PERF_MODS.len());

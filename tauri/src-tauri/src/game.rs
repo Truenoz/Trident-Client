@@ -1,5 +1,3 @@
-// Sesión, lanzamiento y cierre del juego, y las funciones de cuenta.
-
 use crate::account::{self, Session};
 use crate::launcher::{self, WINDOWS};
 use crate::{content, discord, fabric, java, net, nova, profiles, settings, AppState};
@@ -10,10 +8,9 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 
-/// Partida en curso.
 pub struct GameInfo {
     pub profile_id: String,
-    /// Orden de cierre al proceso de Java (None mientras se prepara).
+
     pub kill: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
@@ -23,11 +20,9 @@ pub struct Runtime {
     pub game: Mutex<Option<GameInfo>>,
     pub active_profile: Mutex<Option<String>>,
     pub log_buf: Mutex<Vec<String>>,
-    /// Discord Rich Presence mientras el juego está abierto.
+
     pub presence: Mutex<Option<discord::Presence>>,
 }
-
-// ───────────────────────── Avisos a la interfaz ─────────────────────────
 
 pub fn log(app: &AppHandle, msg: impl Into<String>) {
     let msg = msg.into();
@@ -52,8 +47,6 @@ pub fn is_running(app: &AppHandle) -> Option<String> {
     app.state::<AppState>().rt.game.lock().ok().and_then(|g| g.as_ref().map(|x| x.profile_id.clone()))
 }
 
-// ───────────────────────── Cuenta ─────────────────────────
-
 fn set_session(app: &AppHandle, s: Option<Session>) {
     if let Ok(mut g) = app.state::<AppState>().rt.session.lock() {
         *g = s;
@@ -64,7 +57,6 @@ pub fn get_session(app: &AppHandle) -> Option<Session> {
     app.state::<AppState>().rt.session.lock().ok().and_then(|g| g.clone())
 }
 
-/// Cuándo se renovó por última vez la sesión de Microsoft (el token de Minecraft dura 24 h).
 static SESSION_FRESH: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
 
 fn establish(app: &AppHandle, s: Session) -> Value {
@@ -72,7 +64,7 @@ fn establish(app: &AppHandle, s: Session) -> Value {
         *SESSION_FRESH.lock().unwrap_or_else(|e| e.into_inner()) = Some(std::time::Instant::now());
     }
     let user_dir = app.state::<AppState>().user_dir.clone();
-    // Se guarda la sesión que quedó iniciada (Microsoft o sin cuenta) y se borra la otra.
+
     match &s.refresh_token {
         Some(t) => account::save_refresh(&user_dir, t),
         None => account::clear_refresh(&user_dir),
@@ -104,9 +96,6 @@ pub fn logout(app: &AppHandle) {
     account::clear_offline(&user_dir);
 }
 
-/// Al abrir el launcher: vuelve a abrir la sesión guardada.
-/// Microsoft: se renueva y solo se borra si Microsoft la rechaza (no si no hay internet).
-/// Sin cuenta: se abre con el mismo nombre de la última vez.
 pub async fn restore(app: &AppHandle) -> Result<Value, String> {
     let user_dir = app.state::<AppState>().user_dir.clone();
     let token = match account::load_refresh(&user_dir) {
@@ -130,8 +119,6 @@ pub async fn restore(app: &AppHandle) -> Result<Value, String> {
     }
 }
 
-// ───────────────────────── Preparación del perfil ─────────────────────────
-
 fn split_args(s: &str) -> Vec<String> {
     s.split_whitespace().map(|x| x.to_string()).collect()
 }
@@ -147,7 +134,6 @@ fn remove_nova_jars(mods_dir: &Path) {
     }
 }
 
-/// Deja listo el perfil. Devuelve el id de versión a lanzar (Fabric o vanilla) y si lleva Nova Client.
 async fn prepare_profile(app: &AppHandle, profile: &Value, inst: &Path, root: &Path) -> Result<(String, bool), String> {
     let mc = profile["mc"].as_str().ok_or("El perfil no tiene versión de Minecraft.")?.to_string();
     let progress = |t: String, p: Option<f64>| status(app, "preparing", &t, p);
@@ -155,7 +141,7 @@ async fn prepare_profile(app: &AppHandle, profile: &Value, inst: &Path, root: &P
     std::fs::create_dir_all(&mods_dir).map_err(|e| e.to_string())?;
 
     if profile["loader"].as_str() != Some("fabric") {
-        // Sin Fabric no hay mods: si quedó un Nova Client de antes, se saca para que no estorbe.
+
         remove_nova_jars(&mods_dir);
         return Ok((mc, false));
     }
@@ -165,7 +151,6 @@ async fn prepare_profile(app: &AppHandle, profile: &Value, inst: &Path, root: &P
         fabric::ensure_fabric_api(&mc, &mods_dir, &progress).await?;
     }
 
-    // Contenido sincronizado y mods de rendimiento.
     let env = content::Env {
         user_dir: app.state::<AppState>().user_dir.clone(),
         game_dir: root.to_path_buf(),
@@ -180,7 +165,7 @@ async fn prepare_profile(app: &AppHandle, profile: &Value, inst: &Path, root: &P
             log(app, format!("[Sincronización] {n} elemento(s) actualizado(s)."));
         }
     }
-    // Mods de rendimiento y mod de Trident a la vez (no se pisan: son archivos distintos).
+
     status(app, "preparing", "Preparando mods…", None);
     remove_nova_jars(&mods_dir);
     let perf = async {
@@ -207,7 +192,6 @@ async fn prepare_profile(app: &AppHandle, profile: &Value, inst: &Path, root: &P
     Ok((custom, with_nova))
 }
 
-/// ¿Esta versión entiende --quickPlayMultiplayer? (1.20+ y las versiones nuevas con otro formato de número)
 pub fn supports_quick_play(mc: &str) -> bool {
     match mc.strip_prefix("1.").and_then(|r| r.split('.').next()).and_then(|n| n.parse::<u32>().ok()) {
         Some(minor) => minor >= 20,
@@ -215,15 +199,12 @@ pub fn supports_quick_play(mc: &str) -> bool {
     }
 }
 
-/// Ajuste de memoria en MB (admite valores con decimales, que Java no acepta en «4.5G»).
 fn memory_args(ram_gb: f64) -> [String; 2] {
     let max = ((ram_gb * 1024.0).round() as u64).max(512);
     let min = (((ram_gb.clamp(1.0, 2.0)) * 1024.0).round() as u64).min(max);
     [format!("-Xms{min}M"), format!("-Xmx{max}M")]
 }
 
-/// Opciones de Java afinadas para Minecraft (recolector G1 con pausas cortas: menos tirones).
-/// Si el jugador ya eligió un recolector en «Argumentos de Java», se respetan los suyos.
 pub fn perf_jvm_flags(user_jvm: &[String]) -> Vec<String> {
     let own_gc = user_jvm.iter().any(|a| a.starts_with("-XX:+Use") && a.ends_with("GC"));
     if own_gc {
@@ -245,8 +226,6 @@ pub fn perf_jvm_flags(user_jvm: &[String]) -> Vec<String> {
     .collect()
 }
 
-/// Opciones de video livianas para un perfil nuevo (solo si todavía no tiene options.txt;
-/// nunca se toca lo que el jugador ya configuró). Minecraft completa el resto con sus valores.
 pub fn default_options(inst: &Path) {
     let file = inst.join("options.txt");
     if file.exists() {
@@ -256,7 +235,6 @@ pub fn default_options(inst: &Path) {
     let _ = std::fs::write(file, "renderDistance:10\nsimulationDistance:8\nenableVsync:false\nmaxFps:144\n");
 }
 
-/// Línea de comandos completa (sin el ejecutable de Java).
 #[allow(clippy::too_many_arguments)]
 pub fn build_command(
     prep: &launcher::Prepared,
@@ -338,7 +316,7 @@ pub fn build_command(
         game.push(s("--fullscreen"));
     }
     if let (Some(srv), None) = (server, quick) {
-        // Versiones sin quickPlay: --server host [--port puerto]
+
         let (host, port) = match srv.rsplit_once(':') {
             Some((h, p)) if p.parse::<u16>().is_ok() => (h, Some(p)),
             _ => (srv, None),
@@ -353,8 +331,6 @@ pub fn build_command(
     args.extend(game);
     args
 }
-
-// ───────────────────────── Lanzar y detener ─────────────────────────
 
 pub async fn launch(app: &AppHandle, profile_id: &str, opts: &Value) -> Result<(), String> {
     let st = app.state::<AppState>();
@@ -382,6 +358,7 @@ pub async fn launch(app: &AppHandle, profile_id: &str, opts: &Value) -> Result<(
 }
 
 async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result<(), String> {
+    let started = std::time::Instant::now();
     let st = app.state::<AppState>();
     let (user_dir, game_dir) = (st.user_dir.clone(), st.game_dir.clone());
     if get_session(app).is_none() {
@@ -401,14 +378,11 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     let progress_prep = |t: String, p: Option<f64>| status(app, "preparing", &t, p);
     let progress_dl = |t: String, p: Option<f64>| status(app, "downloading", &t, p);
 
-    // Minecraft (JSON de la versión) y Java
     let version_type = launcher::ensure_vanilla_json(&game_dir, &mc).await?;
     let major = launcher::required_java_major(&game_dir, &mc).await?;
     let java_setting = settings.get("javaPath").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let java_path = java::ensure_java(&game_dir, &java_setting, major, &progress_prep).await?;
 
-    // Renueva el token de Minecraft si la sesión es de Microsoft y tiene más de 12 h
-    // (se renueva al abrir el launcher, así que casi nunca hace falta esperar esto al jugar).
     let stale = SESSION_FRESH.lock().unwrap_or_else(|e| e.into_inner()).is_none_or(|t| t.elapsed() > std::time::Duration::from_secs(12 * 3600));
     if stale {
         if let Some(t) = get_session(app).and_then(|s| s.refresh_token) {
@@ -424,7 +398,6 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     status(app, "downloading", "Verificando archivos del juego…", None);
     let prep = launcher::prepare(&game_dir, &launch_id, &WINDOWS, &progress_dl).await?;
 
-    // Diagnóstico de autenticación: no registra tokens ni credenciales.
     log(app, format!("[Autenticación] Modo: {}", if session.offline { "OFFLINE (sin cuenta Microsoft)" } else { "MICROSOFT" }));
     log(app, format!("[Autenticación] Perfil: {}", session.name));
     log(app, format!("[Autenticación] UUID: {}", session.uuid_plain()));
@@ -437,15 +410,7 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
         .unwrap_or(4.0);
     let mut user_jvm = split_args(settings.get("jvmArgs").and_then(|v| v.as_str()).unwrap_or(""));
     user_jvm.extend(split_args(profile["jvmArgs"].as_str().unwrap_or("")));
-    // Arranque más rápido (Java 21+ con el Java del launcher): Java guarda las clases ya cargadas
-    // y las reutiliza la próxima vez. Se arma solo; si algo cambia, lo vuelve a armar.
-    if java_setting.trim().is_empty() && major >= 21 && !user_jvm.iter().any(|a| a.contains("SharedArchiveFile")) {
-        let cds_dir = game_dir.join("cache").join("cds");
-        if std::fs::create_dir_all(&cds_dir).is_ok() {
-            user_jvm.insert(0, format!("-XX:SharedArchiveFile={}", cds_dir.join(format!("{launch_id}.jsa")).display()));
-            user_jvm.insert(0, "-XX:+AutoCreateSharedArchive".to_string());
-        }
-    }
+
     let net_url = nova::net_url(&settings);
     let nova_net = (with_nova && net_url.starts_with("http") && !net_url.contains(char::is_whitespace)).then_some(net_url.as_str());
     let server = opts["server"].as_str().map(|s| s.trim()).filter(|s| !s.is_empty());
@@ -456,6 +421,7 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     );
 
     default_options(&inst);
+    log(app, format!("[Trident] Launcher listo en {:.1} s; abriendo Minecraft…", started.elapsed().as_secs_f64()));
     let mut cmd = tokio::process::Command::new(&java_path);
     cmd.args(&plan)
         .current_dir(&inst)
@@ -463,7 +429,7 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
     #[cfg(windows)]
-    cmd.creation_flags(0x0800_0000 | 0x0000_8000); // CREATE_NO_WINDOW | ABOVE_NORMAL_PRIORITY_CLASS (más FPS con otros programas abiertos)
+    cmd.creation_flags(0x0800_0000 | 0x0000_8000);
     let mut child = cmd.spawn().map_err(|e| {
         format!("No se pudo iniciar el juego ({}): {e}. Revisá el registro para más detalles.", java_path.display())
     })?;
@@ -507,7 +473,6 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     Ok(())
 }
 
-/// «Jugando Nova Client» en Discord (si «Discord» está activo en Ajustes y hay un ID de aplicación).
 fn show_presence(app: &AppHandle, settings: &serde_json::Map<String, Value>, mc: &str, with_nova: bool) {
     if !settings.get("discord").and_then(|v| v.as_bool()).unwrap_or(true) {
         return;
@@ -533,7 +498,7 @@ fn show_presence(app: &AppHandle, settings: &serde_json::Map<String, Value>, mc:
     }
     let app2 = app.clone();
     let logger: discord::Log = Arc::new(move |m: String| log(&app2, m));
-    hide_presence(app); // por si quedara una anterior
+    hide_presence(app);
     let presence = discord::Presence::start(client_id, activity, logger);
     if let Ok(mut g) = app.state::<AppState>().rt.presence.lock() {
         *g = Some(presence);
@@ -547,7 +512,6 @@ pub fn hide_presence(app: &AppHandle) {
     }
 }
 
-/// Lee una salida del juego línea por línea (con cualquier codificación) y la manda al registro de la interfaz.
 fn pump<R: AsyncRead + Unpin + Send + 'static>(app: AppHandle, stream: R) {
     tokio::spawn(async move {
         let mut reader = BufReader::new(stream);
@@ -646,8 +610,6 @@ mod tests {
         assert_eq!(memory_args(0.1)[1], "-Xmx512M");
     }
 
-    // ── Prueba de punta a punta: servidor HTTP local + JVM real (sin tocar los servidores de Mojang) ──
-
     use std::collections::HashMap as Map;
     use std::io::{Read as _, Write as _};
 
@@ -683,7 +645,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&work);
         std::fs::create_dir_all(&work).unwrap();
 
-        // Cliente falso: un jar con una clase Main que imprime sus argumentos y propiedades.
         std::fs::write(work.join("Main.java"), r#"
             public class Main { public static void main(String[] a) {
                 System.out.println("ARGS=" + String.join("|", a));
@@ -695,7 +656,6 @@ mod tests {
         assert!(std::process::Command::new("jar").current_dir(&work).args(["cf", "client.jar", "Main.class"]).status().unwrap().success());
         let client = std::fs::read(work.join("client.jar")).unwrap();
 
-        // Librería normal y librería de nativos antiguos (zip con una dll y un META-INF)
         let lib = b"PK-lib-falsa".to_vec();
         let mut z = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         let o = zip::write::SimpleFileOptions::default();
@@ -746,7 +706,6 @@ mod tests {
         assert_eq!(prep.classpath.len(), 2, "lib normal + jar del cliente (los nativos no van al classpath)");
         assert!(steps.lock().unwrap().iter().any(|s| s.contains("librerías")));
 
-        // Segunda pasada: todo presente, no debe pedir nada (el servidor ya no sirve nada).
         let again = launcher::prepare(&root, "test-1", &WINDOWS, &progress).await.expect("prepare 2");
         assert_eq!(again.classpath, prep.classpath);
 

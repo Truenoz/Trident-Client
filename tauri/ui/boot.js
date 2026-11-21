@@ -1,11 +1,8 @@
 'use strict';
 
-// Pantalla de carga: se ve apenas se abre la ventana y se oculta cuando la app terminó de arrancar.
-// Se queda un mínimo de tiempo para que no parpadee, y tiene un tope por si algo falla al iniciar.
-
 (function () {
-  const MIN_MS = 1500;   // tiempo mínimo en pantalla
-  const MAX_MS = 15000;  // tope de seguridad
+  const MIN_MS = 1500;
+  const MAX_MS = 15000;
   const started = performance.now();
   let hidden = false;
 

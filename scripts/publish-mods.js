@@ -1,13 +1,5 @@
 'use strict';
-// Sube los mod/nova-client-<versión>.jar que compilaste en tu PC al release «mods-rolling» de GitHub.
-// Desde ahí el launcher baja solo el jar de la versión que elija el usuario.
-//
-// Uso:
-//   npm run build:mod                 (compilás los jars en tu PC)
-//   npm run publish:mods              (sube todos los de mod/)
-//   npm run publish:mods -- 1.21.4    (sube solo esa versión)
-//
-// Necesita la variable NOVA_REPO (usuario/repositorio del launcher) y GitHub CLI (https://cli.github.com) con la sesión iniciada: gh auth login
+
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
@@ -28,9 +20,8 @@ if (!files.length) {
   process.exit(1);
 }
 
-// Este proyecto va aparte del launcher: indicá su repo con  NOVA_REPO=usuario/repositorio  (el del launcher, donde está el release «mods-rolling»).
 const REPO = process.env.NOVA_REPO ? ['--repo', process.env.NOVA_REPO] : [];
-// En Windows el comando pasa por el shell: hay que entrecomillar cada argumento, o una ruta con espacios (p. ej. «Nova client de mod») se corta en pedazos.
+
 const q = (a) => (process.platform === 'win32' ? `"${String(a).replace(/"/g, '\\"')}"` : a);
 const gh = (args) => spawnSync('gh', [...args, ...REPO].map(q), { stdio: 'inherit', shell: process.platform === 'win32' });
 
@@ -39,7 +30,6 @@ if (spawnSync('gh', ['--version'], { shell: process.platform === 'win32' }).stat
   process.exit(1);
 }
 
-// Crea el release la primera vez (pre-lanzamiento, para no pisar el «último release» del launcher).
 const exists = spawnSync('gh', ['release', 'view', TAG, ...REPO].map(q), { stdio: 'ignore', shell: process.platform === 'win32' }).status === 0;
 if (!exists) {
   const r = gh(['release', 'create', TAG, '--prerelease', '--title', 'Mods de Nova Client',

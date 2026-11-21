@@ -1,25 +1,18 @@
 'use strict';
 
-// Social (estilo Dawn): mini panel flotante «Charla» + ventana grande «Charlas» (lista a la izquierda,
-// conversación a la derecha) + ventanas «Agregar amigo» y «Nuevo chat» (con chat grupal).
-// Por ahora todo se guarda en este equipo (localStorage). Cuando haya un servidor de chat,
-// solo hay que reemplazar socialLoad()/socialSave()/socialSend() y la búsqueda de usuarios.
-
 const SOCIAL_KEY = 'nova.social.v3';
 const SOCIAL_OLD_KEY = 'dawn.social.v2';
 
 const social = {
   data: null,
-  open: false,     // mini panel abierto
-  bigModal: null,  // ventana grande «Charlas» (o null)
-  tab: 'chats',    // mini panel: 'chats' | 'friends'
-  query: '',       // búsqueda del mini panel
-  bigQuery: '',    // búsqueda de la ventana grande
-  chat: null,      // id del chat abierto, o null
+  open: false,
+  bigModal: null,
+  tab: 'chats',
+  query: '',
+  bigQuery: '',
+  chat: null,
   el: {}
 };
-
-// ───────────────────────── Datos ─────────────────────────
 
 const directId = (name) => `u:${name.toLowerCase()}`;
 
@@ -27,7 +20,7 @@ function socialLoad() {
   try {
     const raw = JSON.parse(localStorage.getItem(SOCIAL_KEY));
     if (raw && Array.isArray(raw.chats) && Array.isArray(raw.friends)) return raw;
-  } catch { /* datos dañados: se prueba con la versión anterior */ }
+  } catch {  }
   try {
     const old = JSON.parse(localStorage.getItem(SOCIAL_OLD_KEY));
     if (old && Array.isArray(old.chats) && Array.isArray(old.friends)) {
@@ -36,12 +29,12 @@ function socialLoad() {
         chats: old.chats.map((c) => ({ id: directId(c.name), name: c.name, group: false, members: [c.name], messages: c.messages || [] }))
       };
     }
-  } catch { /* sin datos anteriores */ }
-  return { chats: [], friends: [] }; // instalación nueva: sin chats ni amigos
+  } catch {  }
+  return { chats: [], friends: [] };
 }
 
 function socialSave() {
-  try { localStorage.setItem(SOCIAL_KEY, JSON.stringify(social.data)); } catch { /* ignorado */ }
+  try { localStorage.setItem(SOCIAL_KEY, JSON.stringify(social.data)); } catch {  }
 }
 
 const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
@@ -65,11 +58,7 @@ const clockTime = (ts) => new Date(ts).toLocaleTimeString('es-AR', { hour: 'nume
 const dayLabel = (ts) => new Date(ts).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
 const dayKey = (ts) => new Date(ts).toDateString();
 
-// ───────────────────────── Avatares ─────────────────────────
-
-// Cabeza del jugador: se pide la skin al proceso principal (la interfaz no tiene red) y se recorta
-// la cara (8×8) más la capa externa del sombrero. Se cachea para no repetir descargas.
-const headCache = new Map(); // nombre en minúsculas -> promesa del data URL
+const headCache = new Map();
 
 function skinToHead(dataUrl) {
   return new Promise((resolve, reject) => {
@@ -92,14 +81,14 @@ async function fetchHead(name) {
   try {
     const r = await window.launcher.getSkin(name);
     if (r?.ok && r.data?.skin) return await skinToHead(r.data.skin);
-  } catch { /* se usa la skin por defecto */ }
+  } catch {  }
   throw new Error('sin skin');
 }
 
 function loadHead(name) {
   const key = name.toLowerCase();
   if (!headCache.has(key)) {
-    // Si el jugador no existe o no hay red, se muestra la cabeza de Steve en vez de un cuadro vacío.
+
     const p = fetchHead(name).catch(() => (key === 'mhf_steve' ? Promise.reject(new Error('sin skin')) : loadHead('MHF_Steve')));
     headCache.set(key, p);
     p.catch(() => headCache.delete(key));
@@ -122,8 +111,6 @@ function chatAvatar(c, size) {
   if (!c.group) return socialAvatar(c.name, size);
   return h('span', { class: 'sa group', style: { width: `${size}px`, height: `${size}px` } }, icon('users', Math.round(size * 0.55)));
 }
-
-// ───────────────────────── Acciones ─────────────────────────
 
 function socialRefresh() {
   socialRender();
@@ -183,8 +170,6 @@ function socialSend(text) {
   socialRefresh();
 }
 
-// ───────────────────────── Ventana «Agregar amigo» ─────────────────────────
-
 function socialOpenAddFriend() {
   const input = h('input', { type: 'text', placeholder: 'Buscar usuarios', spellcheck: 'false', maxlength: '16' });
   const box = h('label', { class: 'sx-search' }, icon('search', 20), input);
@@ -210,8 +195,6 @@ function socialOpenAddFriend() {
   const m = modal({ title: 'Agregar amigo', icon: 'userPlus', className: 'social-modal', body: [box, out] });
   setTimeout(() => input.focus(), 30);
 }
-
-// ───────────────────────── Ventana «Nuevo chat» ─────────────────────────
 
 function socialOpenNewChat() {
   const input = h('input', { type: 'text', placeholder: 'buscar amigos', spellcheck: 'false' });
@@ -273,9 +256,6 @@ function socialOpenNewChat() {
   setTimeout(() => input.focus(), 30);
 }
 
-// ───────────────────────── Piezas de conversación ─────────────────────────
-
-// Mensajes agrupados por autor y día: encabezado (avatar, nombre y hora) y burbujas debajo.
 function messageList(c) {
   const msgs = h('div', { class: 'sc-msgs' });
   if (!c.messages.length) msgs.append(h('div', { class: 'sc-note', text: `Empezá la charla con ${c.name}.` }));
@@ -328,8 +308,6 @@ function friendRow(name) {
 const sortedChats = (q) => social.data.chats
   .filter((c) => !q || c.name.toLowerCase().includes(q.trim().toLowerCase()))
   .sort((a, b) => chatTs(b) - chatTs(a));
-
-// ───────────────────────── Mini panel ─────────────────────────
 
 function listView() {
   const isChats = social.tab === 'chats';
@@ -407,8 +385,6 @@ function socialRender() {
   if (!c) socialRenderList();
 }
 
-// ───────────────────────── Ventana grande «Charlas» ─────────────────────────
-
 function socialOpenBig() {
   if (social.bigModal) return;
   social.open = false;
@@ -469,8 +445,6 @@ function socialRenderBig() {
   m.body.append(h('div', { class: 'sx' }, left, right));
   socialFillBigList();
 }
-
-// ───────────────────────── Montaje ─────────────────────────
 
 function mountSocial() {
   const root = $('social');

@@ -30,13 +30,11 @@ rand = "0.8"
 flate2 = "1"
 tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls"] }
 
-# Cifrado de la sesión guardada con DPAPI (el mismo almacén seguro de Windows que usa Electron).
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
-# Inicio con Windows (clave Run del usuario, la misma que usa Electron).
+
 winreg = "0.56"
 
-# Instalador lo más chico posible.
 [profile.release]
 panic = "abort"
 codegen-units = 1

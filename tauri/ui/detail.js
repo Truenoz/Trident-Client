@@ -1,13 +1,10 @@
 'use strict';
 
-// Detalle de un perfil (contenido, mundos, registros, ajustes, compartir), buscador de contenido
-// de Modrinth y tarjeta de mods de rendimiento.
-
 const detail = {
   id: null,
   tab: 'content',
-  content: null,       // lista de contenido del perfil (null = cargando)
-  updates: new Set(),  // claves con versión nueva
+  content: null,
+  updates: new Set(),
   filter: 'all',
   query: '',
   selected: new Set(),
@@ -59,7 +56,6 @@ function renderDetail(id, tab) {
   if (detail.content === null) loadContent();
 }
 
-// Lo llama app.js cuando cambia el estado del juego o la lista de perfiles.
 function detailRefresh(reloadContent) {
   const p = detailProfile();
   if (!p || !detail.left) return;
@@ -81,8 +77,6 @@ function detailProgress(text, pct) {
     bar.style.width = `${Math.max(0, Math.min(100, pct))}%`;
   }
 }
-
-// ───────────────────────── Panel izquierdo ─────────────────────────
 
 function renderDetailLeft() {
   const p = detailProfile();
@@ -134,8 +128,6 @@ function infoRow(ico, label, value) {
   return h('div', { class: 'info-line' }, icon(ico, 22), h('div', {}, h('strong', { text: label }), h('span', { class: 'muted small', text: value })));
 }
 
-// ── Rendimiento ──
-
 async function loadPerf() {
   const id = detail.id;
   try {
@@ -143,7 +135,7 @@ async function loadPerf() {
     if (detail.id !== id) return;
     detail.perf = perf;
     renderDetailLeft();
-  } catch { /* sin datos de rendimiento */ }
+  } catch {  }
 }
 
 function perfCard(p) {
@@ -173,8 +165,6 @@ function perfCard(p) {
   return card;
 }
 
-// ───────────────────────── Panel derecho ─────────────────────────
-
 function renderDetailRight() {
   const box = detail.right;
   box.textContent = '';
@@ -192,8 +182,6 @@ function renderDetailRight() {
   else renderShareTab(panel, p);
 }
 
-// ───────────────────────── Contenido ─────────────────────────
-
 async function loadContent() {
   const id = detail.id;
   if (!id) return;
@@ -207,13 +195,13 @@ async function loadContent() {
   }
   if (detail.tab === 'content') renderDetailRight();
   renderDetailLeft();
-  // Archivos puestos a mano: se comparan con Modrinth en segundo plano; si alguno viene de ahí, pasa a figurar como Modrinth.
+
   call(window.launcher.identifyContent(id)).then((n) => {
     if (!n || detail.id !== id) return;
     toast(n === 1 ? 'Detecté 1 archivo descargado de Modrinth.' : `Detecté ${n} archivos descargados de Modrinth.`, 'success');
     loadContent();
   }).catch(() => {});
-  // Versiones nuevas: se miran en segundo plano y solo marcan los botones.
+
   call(window.launcher.checkContentUpdates(id)).then((keys) => {
     if (detail.id !== id) return;
     detail.updates = new Set(keys);
@@ -346,15 +334,12 @@ function renderContentTab(panel, p) {
   }
 }
 
-// Insignia junto a la versión: ✔ compatible, ⚠ no compatible con la versión / cargador del perfil.
 function compatBadge(c) {
   const st = c.compat?.status;
   if (st !== 'ok' && st !== 'bad') return null;
   const el = h('span', { class: `compat-badge ${st}`, title: c.compat.reason, 'aria-label': c.compat.reason }, icon(st === 'ok' ? 'check' : 'warn', 14));
   return el;
 }
-
-// ───────────────────────── Añadir contenido ─────────────────────────
 
 function openAddContent(profileId) {
   const m = modal({
@@ -376,7 +361,7 @@ function openAddContent(profileId) {
             let fromModrinth = 0;
             if (n) {
               busy.update({ text: 'Buscando los archivos en Modrinth…' });
-              try { fromModrinth = await call(window.launcher.identifyContent(profileId)); } catch { /* sin conexión: se reintenta al abrir el perfil */ }
+              try { fromModrinth = await call(window.launcher.identifyContent(profileId)); } catch {  }
             }
             busy.close();
             if (n) {
@@ -398,7 +383,6 @@ function openAddContent(profileId) {
   });
 }
 
-// Buscador de Modrinth para el perfil que devuelva getId().
 function contentBrowser(getId) {
   let type = 'mod';
   let offset = 0;
@@ -484,8 +468,6 @@ function contentBrowser(getId) {
   return root;
 }
 
-// ───────────────────────── Mundos ─────────────────────────
-
 async function renderWorldsTab(panel, p) {
   panel.append(h('div', { class: 'empty-card' }, h('span', { class: 'muted', text: 'Cargando mundos…' })));
   try {
@@ -508,8 +490,6 @@ async function renderWorldsTab(panel, p) {
   }
 }
 
-// ───────────────────────── Registros ─────────────────────────
-
 async function renderLogsTab(panel, p) {
   const pre = h('pre', { class: 'log small-log', tabindex: '0', text: 'Cargando…' });
   const reload = async () => {
@@ -529,8 +509,6 @@ async function renderLogsTab(panel, p) {
     pre);
   reload();
 }
-
-// ───────────────────────── Ajustes del perfil ─────────────────────────
 
 function renderSettingsTab(panel, p) {
   const save = async (patch) => {
@@ -582,8 +560,6 @@ function renderSettingsTab(panel, p) {
   );
   if (!fabricOnly) panel.querySelectorAll('.switch-line .sw-input').forEach((i) => { i.disabled = true; });
 }
-
-// ───────────────────────── Compartir ─────────────────────────
 
 function shareView(p) {
   const code = h('textarea', { class: 'code-box', readonly: true, rows: 5, placeholder: 'Generá un código para compartir este perfil.' });

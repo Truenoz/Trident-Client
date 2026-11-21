@@ -1,9 +1,5 @@
 'use strict';
 
-// Ventana de configuración (generales, apariencia, rendimiento, Java y memoria, ventana del juego,
-// acerca de, legal y zona de peligro) y registro de cambios.
-
-// El color del launcher es siempre el rojo de Trident Client (variables al inicio de styles.css).
 function applyAppearance(s) {
   document.body.classList.toggle('reduce-motion', !!s.reduceMotion);
 }
@@ -12,6 +8,10 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.3.8', [
+    'Se quitó una opción de Java que hacía más lento el arranque de Minecraft en algunas PCs.',
+    'El Registro muestra cuánto tardó el launcher en preparar el juego.'
+  ]],
   ['1.3.7', [
     'Los mods de rendimiento (Sodium, Iris Shaders, Lithium, FerriteCore, ImmediatelyFast, Entity Culling, BadOptimizations y Mod Menu) se instalan siempre en cada perfil con Trident Client.',
     'Minecraft arranca con opciones de Java afinadas y prioridad alta: menos tirones y más FPS.',
@@ -146,7 +146,6 @@ function openSettings(section) {
   drawContent();
 }
 
-// ── Piezas de formulario ──
 function setting(title, desc, control) {
   return h('div', { class: 'setting' }, h('div', { class: 'grow' }, h('strong', { text: title }), desc ? h('span', { class: 'muted small block', text: desc }) : null), control);
 }

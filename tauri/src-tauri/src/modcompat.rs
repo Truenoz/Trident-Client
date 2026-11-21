@@ -1,6 +1,3 @@
-// Detecta si un .jar de mod sirve para la versión de Minecraft y el cargador de un perfil.
-// Lee fabric.mod.json / quilt.mod.json / META-INF/(neoforge.)mods.toml.
-
 use regex::Regex;
 use serde_json::{json, Value};
 use std::io::Read;
@@ -33,7 +30,6 @@ fn cmp(a: &Ver, b: &Ver) -> i32 {
     0
 }
 
-/// Una condición simple de semver de Fabric ("~1.21.9", ">=1.21", "1.21.x", "^1.20"...).
 fn match_atom(atom: &str, v: &Ver) -> Option<bool> {
     static R: OnceLock<Regex> = OnceLock::new();
     let atom = atom.trim();
@@ -62,7 +58,6 @@ fn match_atom(atom: &str, v: &Ver) -> Option<bool> {
     })
 }
 
-/// true / false, o None si no se puede decidir (versión rara, snapshot...).
 pub fn match_range(range: &Value, mc: &str) -> Option<bool> {
     static TAIL: OnceLock<Regex> = OnceLock::new();
     let v = parse_ver(mc)?;
@@ -99,7 +94,6 @@ pub fn match_range(range: &Value, mc: &str) -> Option<bool> {
     if unknown { None } else { Some(false) }
 }
 
-/// Rango de Maven de Forge/NeoForge: "[1.21,1.22)", "[1.21.1]", "1.21.1".
 pub fn match_maven(range: &str, mc: &str) -> Option<bool> {
     static R: OnceLock<Regex> = OnceLock::new();
     let v = parse_ver(mc)?;
@@ -166,7 +160,6 @@ fn non_null(v: &Value) -> Option<Value> {
     if v.is_null() { None } else { Some(v.clone()) }
 }
 
-/// Lee un jar: cargador, rango de Minecraft pedido, nombre, versión y autor.
 pub fn read_mod_jar(file: &Path) -> JarInfo {
     let mut info = JarInfo::default();
     let Ok(f) = std::fs::File::open(file) else { return info };
@@ -213,7 +206,6 @@ fn loader_name(l: &str) -> &str {
     }
 }
 
-/// Devuelve { status: ok | bad | unknown, reason, requires? }.
 pub fn check_compat(info: &JarInfo, loader: &str, mc: &str) -> Value {
     let Some(il) = info.loader.as_deref() else {
         return json!({ "status": "unknown", "reason": "No se pudo leer la información del mod." });
@@ -259,7 +251,7 @@ mod tests {
         assert_eq!(match_range(&json!("1.21.x"), "1.20.6"), Some(false));
         assert_eq!(match_range(&json!("1.20 || 1.21.4"), "1.21.4"), Some(true));
         assert_eq!(match_range(&json!("*"), "1.19.2"), Some(true));
-        // «>1.20» sin parche cuenta como «>=1.21» (igual que en Electron).
+
         assert_eq!(match_range(&json!(">1.20"), "1.20.4"), Some(false));
         assert_eq!(match_range(&json!(">1.20"), "1.21"), Some(true));
         assert_eq!(match_range(&json!("^1.20"), "1.21.1"), Some(true));

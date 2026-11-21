@@ -1,6 +1,3 @@
-// Mod «Nova Client» (jar de Fabric): se baja del release fijo `mods-rolling` de GitHub a `mod-cache/`
-// (mismo índice `index.json` que la versión Electron) y se copia a la carpeta de mods del perfil.
-
 use serde_json::{json, Value};
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
@@ -8,7 +5,6 @@ use std::time::Duration;
 
 use crate::dl;
 
-// Configuración del repositorio en trident.config.json (GitHub, Discord, servidor de amigos).
 const CONFIG: &str = include_str!("../../../trident.config.json");
 const ROLLING_TAG: &str = "mods-rolling";
 
@@ -16,7 +12,6 @@ fn config() -> Value {
     serde_json::from_str(CONFIG.trim_start_matches('\u{feff}')).unwrap_or(Value::Null)
 }
 
-/// Texto de una clave de `trident.config.json` (vacío si no existe).
 pub fn config_string(key: &str) -> String {
     config()[key].as_str().unwrap_or("").trim().to_string()
 }
@@ -28,7 +23,6 @@ pub fn repo() -> Option<String> {
     ok.then_some(r)
 }
 
-/// Servidor de amistades: el de Ajustes manda, si no el de trident.config.json. Vacío = sin amigos en línea.
 pub fn net_url(settings: &serde_json::Map<String, Value>) -> String {
     let own = settings.get("novaNetUrl").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if !own.is_empty() {
@@ -57,8 +51,6 @@ fn looks_like_jar(path: &Path) -> bool {
     size >= 1000 && std::fs::File::open(path).and_then(|mut f| f.read_exact(&mut head)).is_ok() && head == *b"PK"
 }
 
-/// Release fijo `mods-rolling`. `Ok(None)` = sin repositorio configurado o el release todavía no existe;
-/// `Err` = sin conexión o GitHub respondió con un error.
 async fn rolling_release() -> Result<Option<Value>, String> {
     let repo = match repo() {
         Some(r) => r,
@@ -79,7 +71,6 @@ async fn rolling_release() -> Result<Option<Value>, String> {
     }
 }
 
-/// Archivo del release para esa versión: `trident-client-<mc>.jar` (o el nombre viejo `nova-client-<mc>.jar`).
 fn find_asset<'a>(release: &'a Value, mc: &str) -> Option<&'a Value> {
     let assets = release["assets"].as_array()?;
     [format!("trident-client-{mc}.jar"), format!("nova-client-{mc}.jar")]
@@ -87,8 +78,6 @@ fn find_asset<'a>(release: &'a Value, mc: &str) -> Option<&'a Value> {
         .find_map(|name| assets.iter().find(|x| x["name"].as_str() == Some(name.as_str())))
 }
 
-/// Baja el jar de `mc` del release si es distinto del guardado. Devuelve true si lo actualizó.
-/// En la PC se guarda siempre como `mod-cache/nova-client-<mc>.jar` (nombre interno, no se ve).
 async fn take_from_release(cache: &Path, release: &Value, mc: &str, log: &(dyn Fn(String) + Send + Sync)) -> Result<bool, String> {
     let wanted = format!("nova-client-{mc}.jar");
     let jar = cache.join(&wanted);
@@ -118,13 +107,11 @@ async fn take_from_release(cache: &Path, release: &Value, mc: &str, log: &(dyn F
     Ok(true)
 }
 
-/// Jar de Nova Client para esa versión de Minecraft: el del release (si hay uno nuevo se baja) o el ya guardado.
-/// `Ok(None)` = no hay jar publicado para esa versión (el juego arranca solo con Fabric).
 pub async fn ensure_jar(user_dir: &Path, mc: &str, log: &(dyn Fn(String) + Send + Sync)) -> Result<Option<PathBuf>, String> {
     let cache = user_dir.join("mod-cache");
     let jar = cache.join(format!("nova-client-{mc}.jar"));
     let have = || jar.exists().then(|| jar.clone());
-    // Revisado hace menos de una hora: se usa el que ya está (el juego abre sin esperar a GitHub).
+
     let key = format!("trident:{mc}");
     if jar.exists() && crate::dl::checked_recently(&key, 1) {
         return Ok(have());
@@ -132,7 +119,7 @@ pub async fn ensure_jar(user_dir: &Path, mc: &str, log: &(dyn Fn(String) + Send 
     let release = match rolling_release().await {
         Ok(Some(r)) => r,
         Ok(None) => {
-            // Sin esto el juego arrancaba solo con Fabric sin decir por qué.
+
             match repo() {
                 Some(r) => log(format!(
                     "[Trident] El repositorio {r} no tiene el release «{ROLLING_TAG}» (o es privado): no hay de dónde bajar el mod. Publicá los jars con «npm run publish:mods»."
@@ -145,7 +132,7 @@ pub async fn ensure_jar(user_dir: &Path, mc: &str, log: &(dyn Fn(String) + Send 
             if e.starts_with("HTTP") {
                 log(format!("[Trident] No se pudo consultar el release ({e}); se usa lo que hay."));
             }
-            return Ok(have()); // sin conexión
+            return Ok(have());
         }
     };
     match take_from_release(&cache, &release, mc, log).await {
@@ -155,8 +142,6 @@ pub async fn ensure_jar(user_dir: &Path, mc: &str, log: &(dyn Fn(String) + Send 
     Ok(have())
 }
 
-/// «Buscar actualizaciones»: vuelve a bajar los jars ya guardados que se republicaron en `mods-rolling`.
-/// Devuelve el tag del release y las versiones de Minecraft actualizadas.
 pub async fn refresh_cached(user_dir: &Path, log: &(dyn Fn(String) + Send + Sync)) -> Result<(String, Vec<String>), String> {
     let cache = user_dir.join("mod-cache");
     let mine: Vec<String> = read_index(&cache)["jars"]
@@ -179,10 +164,6 @@ pub async fn refresh_cached(user_dir: &Path, log: &(dyn Fn(String) + Send + Sync
     Ok((release["tag_name"].as_str().unwrap_or("").to_string(), updated))
 }
 
-/// Corrige `fabric.mod.json` de un jar ya publicado:
-///  · Los Fabric API viejos (hasta 1.19.x) se llaman «fabric», no «fabric-api»: la dependencia pasa a «fabric-api-base».
-///  · Se quitan los mixins que el jar declara pero no trae (Mixin tira «was invalid or could not be read»).
-/// Devuelve el jar nuevo, o `None` si no hace falta tocar nada.
 pub fn patch_jar(bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let mut text = String::new();
@@ -234,7 +215,6 @@ pub fn patch_jar(bytes: &[u8]) -> Result<Option<Vec<u8>>, String> {
     Ok(Some(out.finish().map_err(|e| e.to_string())?.into_inner()))
 }
 
-/// Copia el jar a la carpeta de mods aplicando las correcciones de `patch_jar` (si fallan, queda el jar original).
 pub fn install_jar(src: &Path, dest: &Path, log: &(dyn Fn(String) + Send + Sync)) -> Result<(), String> {
     let bytes = std::fs::read(src).map_err(|e| e.to_string())?;
     match patch_jar(&bytes) {

@@ -1,9 +1,5 @@
 'use strict';
 
-// Núcleo del launcher: navegación, cuenta, inicio, lista de perfiles, asistente de perfiles,
-// registro y arranque. (ui.js trae las utilidades; detail.js el detalle de perfil;
-// settings.js la ventana de configuración.)
-
 const els = {
   views: {
     home: $('view-home'),
@@ -12,14 +8,14 @@ const els = {
     browse: $('view-browse'),
     console: $('view-console')
   },
-  // cuenta
+
   accountOut: $('account-out'),
   accountIn: $('account-in'),
   accountName: $('account-name'),
   avatar: $('avatar'),
   btnLogout: $('btn-logout'),
   loginBtns: document.querySelectorAll('.js-login'),
-  // escena
+
   hero: document.querySelector('.hero'),
   heroKicker: $('hero-kicker'),
   heroTitle: $('hero-title'),
@@ -29,7 +25,7 @@ const els = {
   nametag: $('nametag'),
   heroPillText: $('hero-pill-text'),
   heroLogin: $('hero-login'),
-  // inicio
+
   launchLabel: $('launch-label'),
   launchFill: $('launch-fill'),
   profilePick: $('btn-profile-pick'),
@@ -50,14 +46,14 @@ const els = {
   infoRam: $('info-ram'),
   infoJava: $('info-java'),
   infoCount: $('info-count'),
-  // perfiles
+
   profileTabs: $('profile-tabs'),
   profileSearch: $('profile-search'),
   profileGroups: $('profile-groups'),
-  // registro
+
   log: $('log'),
   btnClearLog: $('btn-clear-log'),
-  // barra
+
   updatePill: $('update-pill'),
   railPlay: $('rail-play')
 };
@@ -70,17 +66,15 @@ const state = {
   versionsLoaded: false,
   profiles: [],
   folders: [],
-  busy: false,         // preparando o descargando
-  running: false,      // el juego está abierto
-  activeId: null,      // perfil que se prepara / juega
+  busy: false,
+  running: false,
+  activeId: null,
   view: 'home',
   profileTab: 'all',
   collapsed: new Set(),
   notifications: [],
   unread: 0
 };
-
-// ───────────────────────── Íconos fijos del HTML ─────────────────────────
 
 function mountStaticIcons() {
   $('ico-palette').replaceWith(icon('palette', 18));
@@ -98,7 +92,6 @@ function mountStaticIcons() {
   $('btn-new-profile').append(icon('plus'), 'Nuevo perfil');
 }
 
-// Pestañas de la barra superior.
 const TABS = [
   { view: 'home', icon: 'play', title: 'Jugar' },
   { view: 'profiles', icon: 'grid', title: 'Perfiles' },
@@ -114,11 +107,9 @@ function mountRail() {
       onclick: () => goTo(t.view)
     }, icon(t.icon, 17), h('span', { text: t.title })));
   }
-  // Charlas: abre el panel social.
+
   $('btn-chat').addEventListener('click', () => { if (typeof socialToggleBig === 'function') socialToggleBig(); });
 }
-
-// ───────────────────────── Utilidades ─────────────────────────
 
 function showError(message) {
   els.playError.textContent = message || '';
@@ -159,8 +150,6 @@ function notify(text) {
   $('bell-dot').classList.remove('hidden');
 }
 
-// El juego puede escribir cientos de líneas por segundo: se juntan y se agregan de una vez
-// (como mucho 4 veces por segundo, y solo si el Registro está a la vista).
 const logQueue = { lines: [], timer: 0, size: 0 };
 function appendLog(line) {
   logQueue.lines.push(line.endsWith('\n') ? line : `${line}\n`);
@@ -182,8 +171,6 @@ function flushLog() {
   }
   if (atBottom) els.log.scrollTop = els.log.scrollHeight;
 }
-
-// ───────────────────────── Navegación ─────────────────────────
 
 function goTo(view, opts) {
   closeMenu();
@@ -236,27 +223,22 @@ $('btn-news-all').addEventListener('click', () => {
   call(window.launcher.openExternal('https://www.minecraft.net/es-es/articles')).catch((e) => toast(e.message, 'error'));
 });
 
-// ───────────────────────── Cuenta ─────────────────────────
-
 const STEVE = 'https://mc-heads.net/body/MHF_Steve/320';
 
-// Visor 3D de la skin (WebGL). Si el equipo no lo soporta, queda la imagen 2D de siempre.
 let viewer3d = null;
 try { viewer3d = els.skin3d && window.Skin3D && Skin3D.supported() ? Skin3D.create(els.skin3d, els.hero) : null; } catch { viewer3d = null; }
 if (viewer3d) viewer3d.onLost = () => showFlatSkin(state.account);
 let skinToken = 0;
 
-// Versión 2D (respaldo).
 function showFlatSkin(account) {
   els.skin3d.classList.add('hidden');
   els.skin.classList.remove('hidden');
   els.skin.classList.toggle('dim', !account);
-  // Si no carga la skin se prueba con Steve; si tampoco hay conexión, se oculta en vez de mostrar una imagen rota.
+
   els.skin.onerror = () => { els.skin.onerror = () => els.skin.classList.add('hidden'); els.skin.src = STEVE; };
   els.skin.src = account ? `https://mc-heads.net/body/${encodeURIComponent(account.uuid)}/320` : STEVE;
 }
 
-// Detecta la skin de la cuenta (o la de Steve sin sesión) y la muestra en 3D.
 async function showSkin(account) {
   const token = ++skinToken;
   els.skin3d.classList.toggle('dim', !account);
@@ -268,7 +250,7 @@ async function showSkin(account) {
     if (token !== skinToken) return;
     els.skin.classList.add('hidden');
     els.skin3d.classList.remove('hidden');
-    // La carita de la cuenta sale de la misma skin, así coincide siempre con el personaje.
+
     if (account) {
       const face = viewer3d.faceDataURL(64);
       if (face) { els.avatar.onerror = null; els.avatar.src = face; }
@@ -284,7 +266,7 @@ function renderAccount(account) {
   els.accountOut.classList.toggle('hidden', !!account);
   els.accountIn.classList.toggle('hidden', !account);
   els.heroLogin.classList.toggle('hidden', !!account);
-  $('hero-pill').classList.toggle('hidden', !!account); // con sesión, la cuenta se ve en el panel derecho
+  $('hero-pill').classList.toggle('hidden', !!account);
 
   if (account) {
     const id = encodeURIComponent(account.uuid);
@@ -321,8 +303,6 @@ async function doLogin() {
 
 els.loginBtns.forEach((b) => b.addEventListener('click', doLogin));
 
-// El inicio offline se conecta desde un manejador aislado al final de index.html.
-
 async function doLogout() {
   await call(window.launcher.logout());
   renderAccount(null);
@@ -338,8 +318,6 @@ function friendlyAuthError(message) {
   return `No se pudo iniciar sesión: ${message}`;
 }
 
-// ───────────────────────── Estado general / render ─────────────────────────
-
 function canPlay() {
   return !!state.account && !state.busy && !state.running;
 }
@@ -352,7 +330,6 @@ function renderAll() {
   if (state.view === 'detail' && typeof detailRefresh === 'function') detailRefresh();
 }
 
-// Botón grande de inicio: JUGAR / INICIAR SESIÓN / CREAR PERFIL / PREPARANDO… / DETENER.
 function launchMode() {
   const p = lastProfile();
   if (state.running && (!state.activeId || !p || state.activeId === p.id)) return 'stop';
@@ -387,8 +364,6 @@ function renderStatusPill() {
   els.statusPill.classList.toggle('on', state.running);
 }
 
-// ───────────────────────── Inicio ─────────────────────────
-
 function renderHome() {
   const p = lastProfile();
   if (p) {
@@ -410,7 +385,6 @@ function renderHome() {
   loadHomeMods();
 }
 
-// Elegir con qué perfil juega el botón grande (el último usado queda guardado en los ajustes).
 function openProfilePicker() {
   const current = lastProfile();
   const items = recentProfiles().slice(0, 8).map((p) => ({
@@ -430,7 +404,6 @@ async function selectProfile(id) {
   renderAll();
 }
 
-// ── Mods del perfil elegido (panel del inicio) ──
 const homeMods = { id: null, list: null, loading: false, stale: true };
 
 async function loadHomeMods(force) {
@@ -518,8 +491,6 @@ function drawHomeMods() {
   }
 }
 
-// ───────────────────────── Jugar ─────────────────────────
-
 async function playProfile(id, opts) {
   if (state.busy || state.running) return;
   const p = profileById(id);
@@ -563,7 +534,7 @@ window.launcher.onStatus(async ({ state: s, text, percent, profileId }) => {
     state.activeId = null;
     setProgress(text || 'Todo listo.', 0);
     if (text) notify(text);
-    // El tiempo jugado y «última vez» cambiaron: se vuelven a pedir los perfiles.
+
     await loadProfiles();
   } else if (s === 'running') {
     state.busy = false;
@@ -576,7 +547,7 @@ window.launcher.onStatus(async ({ state: s, text, percent, profileId }) => {
     state.activeId = profileId || state.activeId;
     setProgress(text, percent);
   }
-  // Con el juego abierto, el launcher frena animaciones y adornos para dejarle todo el equipo a Minecraft.
+
   document.body.classList.toggle('game-running', state.running);
   if (before !== `${state.busy}|${state.running}|${state.activeId}`) renderAll();
 });
@@ -588,22 +559,18 @@ window.launcher.onProfileProgress(({ text }) => {
   if (text) toast(text);
 });
 
-// ───────────────────────── Perfiles: carga ─────────────────────────
-
 async function loadProfiles() {
   const data = await call(window.launcher.listProfiles());
   state.profiles = data.profiles;
   state.folders = data.folders;
   homeMods.stale = true;
   if (state.settings && typeof state.settings === 'object') {
-    // El backend guarda el último perfil jugado en los ajustes: se vuelve a leer para que el inicio lo muestre.
-    try { state.settings = await call(window.launcher.getSettings()); } catch { /* se queda con los anteriores */ }
+
+    try { state.settings = await call(window.launcher.getSettings()); } catch {  }
   }
   els.infoCount.textContent = String(state.profiles.length);
   renderAll();
 }
-
-// ───────────────────────── Perfiles: lista ─────────────────────────
 
 const PROFILE_TABS = [
   { id: 'all', label: 'Todos', test: () => true },
@@ -613,7 +580,7 @@ const PROFILE_TABS = [
 ];
 
 function renderProfiles() {
-  // pestañas con contador
+
   els.profileTabs.textContent = '';
   for (const t of PROFILE_TABS) {
     const n = state.profiles.filter(t.test).length;
@@ -828,8 +795,6 @@ function openShareModal(p) {
   });
 }
 
-// ── Carpetas e importación ──
-
 $('btn-new-folder').addEventListener('click', async () => {
   const name = await promptDialog({ title: 'Nueva carpeta', label: 'Nombre de la carpeta', okLabel: 'Crear' });
   if (!name) return;
@@ -874,9 +839,6 @@ $('btn-import').addEventListener('click', (e) => {
 
 $('btn-new-profile').addEventListener('click', () => openProfileWizard());
 
-// ───────────────────────── Asistente: nuevo perfil / cambiar versión ─────────────────────────
-
-// Botón "Cambiar versión": avisa que está cargando las versiones compatibles y abre el asistente.
 async function changeVersion(profile) {
   const busy = progressToast({ title: 'Cargando versiones compatibles', text: `Buscando versiones disponibles para ${profile.name}.` });
   try {
@@ -975,7 +937,7 @@ function openProfileWizard({ profile = null } = {}) {
     if (!m) {
       m = modal({ ...cfg, onClose: () => { m = null; } });
     } else {
-      // Se reemplaza el contenido de la misma ventana.
+
       const box = m.el;
       box.className = `modal-box${cfg.wide ? ' wide' : ''}`;
       box.querySelector('h3').textContent = cfg.title;
@@ -1021,11 +983,7 @@ function openProfileWizard({ profile = null } = {}) {
   void step;
 }
 
-// ───────────────────────── Modificaciones (buscador global) ─────────────────────────
-
 function renderBrowse() { renderMods(); }
-
-// ───────────────────────── Novedades ─────────────────────────
 
 function formatDate(iso) {
   const d = new Date(iso);
@@ -1037,7 +995,7 @@ function formatDate(iso) {
 }
 
 let newsLoadedAt = 0;
-const NEWS_REFRESH_MS = 24 * 60 * 60 * 1000; // las novedades se actualizan una vez por día
+const NEWS_REFRESH_MS = 24 * 60 * 60 * 1000;
 const news = { index: 0, timer: null, count: 0 };
 
 function newsUrl(n) {
@@ -1085,7 +1043,7 @@ async function loadNews() {
     showNews(0);
     scheduleNews();
   } catch {
-    if (hadCards) return; // si ya había novedades, se dejan hasta el próximo intento
+    if (hadCards) return;
     news.count = 0;
     els.newsList.textContent = '';
     els.newsDots.textContent = '';
@@ -1096,11 +1054,8 @@ async function loadNews() {
 els.newsList.addEventListener('mouseenter', () => { clearInterval(news.timer); news.timer = null; });
 els.newsList.addEventListener('mouseleave', scheduleNews);
 
-// Revisa cada hora: si pasó un día (o la última carga falló) vuelve a pedir las novedades.
 setInterval(() => { if (Date.now() - newsLoadedAt >= NEWS_REFRESH_MS || !newsLoadedAt) loadNews(); }, 60 * 60 * 1000);
 window.addEventListener('focus', () => { if (Date.now() - newsLoadedAt >= NEWS_REFRESH_MS) loadNews(); });
-
-// ───────────────────────── Versiones ─────────────────────────
 
 async function loadVersions() {
   state.versionsLoaded = false;
@@ -1111,8 +1066,6 @@ async function loadVersions() {
     showError(`No se pudo cargar la lista de versiones: ${e.message}`);
   }
 }
-
-// ───────────────────────── Actualizaciones en vivo ─────────────────────────
 
 const upd = { launcher: null };
 
@@ -1138,7 +1091,6 @@ function renderUpdate() {
   }
 }
 
-// Tocar el cartel: la cuenta regresiva se frena y se pregunta si continuar o cancelar.
 let askingUpdate = false;
 async function askUpdate() {
   if (askingUpdate) return;
@@ -1172,7 +1124,7 @@ window.launcher.onUpdate(async (u) => {
       error: !u.message ? 'No se pudo buscar actualizaciones (¿sin conexión?).'
         : /^No se pudo/.test(u.message) ? u.message : `No se pudo buscar actualizaciones: ${u.message}`
     }[u.state];
-    // Si falla la descarga o la instalación, se avisa aunque no esté abierta la pantalla de Ajustes.
+
     if (u.state === 'error' && /^No se pudo (descargar|instalar)/.test(u.message || '')) toast(u.message, 'error');
     if (text && typeof setUpdateText === 'function') setUpdateText(text);
     if ((u.state === 'available' || u.state === 'countdown') && upd.notified !== u.version) { upd.notified = u.version; notify(`Actualización ${u.version || ''} disponible.`); }
@@ -1183,15 +1135,11 @@ window.launcher.onUpdate(async (u) => {
   }
 });
 
-// ───────────────────────── Ajustes rápidos usados en inicio ─────────────────────────
-
 function renderInstallInfo() {
   const gb = state.profiles.length && lastProfile()?.ramGB ? lastProfile().ramGB : state.settings.ramGB;
   els.infoRam.textContent = `${gb} GB`;
   els.infoJava.textContent = state.settings.javaPath ? 'Personalizado' : 'Automático';
 }
-
-// ───────────────────────── Arranque ─────────────────────────
 
 (async function init() {
   mountStaticIcons();
@@ -1206,7 +1154,7 @@ function renderInstallInfo() {
   state.settings = settings;
   state.info = info;
   applyAppearance(settings);
-  // El control de tamaño de la interfaz se sacó: si quedó guardado otro tamaño, vuelve a 100 % para no quedar trabado.
+
   if (Number(settings.uiScale) && Number(settings.uiScale) !== 1) saveSetting({ uiScale: 1 }).catch(() => {});
   $('brand-ver').textContent = info.version ? `Versión ${info.version}` : '';
   state.running = !!info.running;
@@ -1216,7 +1164,7 @@ function renderInstallInfo() {
   renderInstallInfo();
   goTo('home');
 
-  loadNews();                 // en paralelo, no bloquea nada
+  loadNews();
   await loadVersions();
 
   setProgress('Comprobando sesión…', null);

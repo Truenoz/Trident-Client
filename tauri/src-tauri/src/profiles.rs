@@ -1,7 +1,3 @@
-// Perfiles: misma estructura de profiles.json que la antigua versión Electron ({ folders, profiles, servers }).
-// Los perfiles se manejan como JSON para no perder ningún campo que escriba otra versión del launcher.
-// Crear, listar, editar, duplicar, borrar, carpetas y servidores guardados (el contenido de cada perfil está en content.rs).
-
 use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,8 +6,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const PROFILE_KEYS: &[&str] = &[
     "name", "mc", "loader", "nova", "autoSync", "folder", "ramGB", "jvmArgs", "pinned", "fabricApi",
 ];
-
-// ───────────────────────── Almacén ─────────────────────────
 
 struct Store {
     raw: Map<String, Value>,
@@ -70,8 +64,6 @@ impl Store {
     }
 }
 
-// ───────────────────────── Utilidades ─────────────────────────
-
 pub fn new_id() -> String {
     let b: [u8; 6] = rand::random();
     b.iter().map(|x| format!("{:02x}", x)).collect()
@@ -84,7 +76,6 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// Equivalente a `!!v` de JavaScript.
 fn truthy(v: &Value) -> bool {
     match v {
         Value::Null => false,
@@ -138,9 +129,6 @@ pub fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-// ───────────────────────── Perfiles ─────────────────────────
-
-/// Si todavía no hay perfiles, crea uno con la configuración anterior (misma carpeta del juego).
 pub fn ensure_default(user_dir: &Path, settings: &Map<String, Value>) -> Result<(), String> {
     let mut s = Store::load(user_dir);
     if !s.arr("profiles").is_empty() {
@@ -289,7 +277,7 @@ pub fn remove(user_dir: &Path, game_dir: &Path, id: &str) -> Result<(), String> 
     let i = s.find(id)?;
     let p = s.arr_mut("profiles").remove(i);
     s.save(user_dir)?;
-    // La carpeta del perfil heredado es la raíz del juego (hay otros datos adentro): no se borra.
+
     if !p["legacy"].as_bool().unwrap_or(false) {
         let _ = fs::remove_dir_all(instance_dir(&p, game_dir));
     }
@@ -316,7 +304,6 @@ pub fn duplicate(user_dir: &Path, game_dir: &Path, id: &str) -> Result<Value, St
     )?;
     let new_id_str = created["id"].as_str().unwrap_or("").to_string();
 
-    // Hereda rendimiento, RAM y argumentos de Java.
     let mut s = Store::load(user_dir);
     let ci = s.find(&new_id_str)?;
     {
@@ -331,7 +318,6 @@ pub fn duplicate(user_dir: &Path, game_dir: &Path, id: &str) -> Result<Value, St
     }
     s.save(user_dir)?;
 
-    // Copia mods, paquetes de recursos, config y opciones.
     let from = instance_dir(&p, game_dir);
     let to = instance_dir(&s.arr("profiles")[ci], game_dir);
     for sub in ["mods", "resourcepacks", "config", "shaderpacks"] {
@@ -345,7 +331,6 @@ pub fn duplicate(user_dir: &Path, game_dir: &Path, id: &str) -> Result<Value, St
     Ok(view(&s.arr("profiles")[ci], game_dir))
 }
 
-/// Suma el tiempo jugado y marca la última vez (igual que touchPlayed de la versión Electron).
 pub fn touch_played(user_dir: &Path, id: &str, seconds: f64) {
     let mut s = Store::load(user_dir);
     if let Ok(i) = s.find(id) {
@@ -379,14 +364,12 @@ pub fn set_folders(user_dir: &Path, action: &str, name: &str) -> Result<Value, S
     Ok(json!(s.arr("folders")))
 }
 
-/// Carpeta de la instancia de un perfil (para «Abrir carpeta»).
 pub fn dir_of(user_dir: &Path, game_dir: &Path, id: &str) -> Result<PathBuf, String> {
     let s = Store::load(user_dir);
     let i = s.find(id)?;
     Ok(instance_dir(&s.arr("profiles")[i], game_dir))
 }
 
-/// Nombres de todos los perfiles (para la depuración).
 pub fn ids(user_dir: &Path) -> Vec<String> {
     Store::load(user_dir)
         .arr("profiles")

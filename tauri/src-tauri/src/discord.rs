@@ -1,6 +1,3 @@
-// Discord Rich Presence sin dependencias: habla directo con el IPC local de Discord
-// (named pipe en Windows, socket Unix en Mac/Linux). Si Discord no está abierto, reintenta solo.
-
 use serde_json::{json, Map, Value};
 use std::io;
 use std::sync::Arc;
@@ -17,7 +14,6 @@ const RETRY: Duration = Duration::from_secs(15);
 
 pub type Log = Arc<dyn Fn(String) + Send + Sync>;
 
-/// ID de la aplicación de Discord: el de Ajustes manda, si no el de trident.config.json.
 pub fn client_id(settings: &Map<String, Value>) -> String {
     let own = settings.get("discordClientId").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if !own.is_empty() {
@@ -26,7 +22,6 @@ pub fn client_id(settings: &Map<String, Value>) -> String {
     crate::nova::config_string("discordClientId")
 }
 
-/// Clave (o URL https) de la imagen grande. Vacío = sin imagen.
 pub fn large_image(settings: &Map<String, Value>) -> String {
     let own = settings.get("discordLargeImage").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if !own.is_empty() {
@@ -35,13 +30,10 @@ pub fn large_image(settings: &Map<String, Value>) -> String {
     crate::nova::config_string("discordLargeImage")
 }
 
-/// Un ID de aplicación de Discord son 15 a 25 dígitos.
 pub fn is_valid_id(id: &str) -> bool {
     let n = id.len();
     (15..=25).contains(&n) && id.bytes().all(|b| b.is_ascii_digit())
 }
-
-// ───────────────────────── Protocolo ─────────────────────────
 
 async fn write_frame<W: AsyncWrite + Unpin>(w: &mut W, op: i32, data: &Value) -> io::Result<()> {
     let body = serde_json::to_vec(data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -70,7 +62,6 @@ fn nonce() -> String {
     format!("{:016x}{:016x}", rand::random::<u64>(), rand::random::<u64>())
 }
 
-/// SET_ACTIVITY con la actividad, o sin ella para quitarla.
 async fn send_activity<W: AsyncWrite + Unpin>(w: &mut W, activity: &Option<Value>) -> io::Result<()> {
     let mut args = json!({ "pid": std::process::id() });
     if let Some(a) = activity {
@@ -78,8 +69,6 @@ async fn send_activity<W: AsyncWrite + Unpin>(w: &mut W, activity: &Option<Value
     }
     write_frame(w, OP_FRAME, &json!({ "cmd": "SET_ACTIVITY", "args": args, "nonce": nonce() })).await
 }
-
-// ───────────────────────── Conexión ─────────────────────────
 
 trait Io: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> Io for T {}
@@ -117,8 +106,6 @@ async fn connect() -> Option<Box<dyn Io>> {
     None
 }
 
-/// Una conexión con Discord: saludo, espera READY, publica la actividad y la mantiene al día.
-/// Termina cuando Discord cierra, hay un error o se suelta el emisor de la actividad.
 async fn session<C: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
     conn: C,
     client_id: &str,
@@ -130,7 +117,6 @@ async fn session<C: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
         return;
     }
 
-    // La lectura va en su propia tarea: `read_exact` no se puede cancelar a mitad de un mensaje.
     let (tx, mut frames) = mpsc::channel::<(i32, Value)>(16);
     let reader = tokio::spawn(async move {
         while let Ok(frame) = read_frame(&mut rd).await {
@@ -177,7 +163,7 @@ async fn session<C: AsyncRead + AsyncWrite + Unpin + Send + 'static>(
             }
             changed = rx.changed() => {
                 if changed.is_err() {
-                    break; // se soltó el emisor: «stop»
+                    break;
                 }
                 let current = rx.borrow_and_update().clone();
                 if ready && send_activity(&mut wr, &current).await.is_err() {
@@ -194,7 +180,7 @@ async fn run(client_id: String, mut rx: watch::Receiver<Option<Value>>, log: Log
         if let Some(conn) = connect().await {
             session(conn, &client_id, &mut rx, &log).await;
         }
-        // Espera para reintentar, pero sale en cuanto se suelta el emisor.
+
         tokio::select! {
             _ = tokio::time::sleep(RETRY) => {}
             changed = rx.changed() => {
@@ -206,9 +192,6 @@ async fn run(client_id: String, mut rx: watch::Receiver<Option<Value>>, log: Log
     }
 }
 
-// ───────────────────────── Interfaz pública ─────────────────────────
-
-/// Actividad en marcha. `stop()` la quita de Discord y cierra la conexión.
 pub struct Presence {
     tx: watch::Sender<Option<Value>>,
 }
@@ -224,7 +207,7 @@ impl Presence {
         let tx = self.tx;
         tauri::async_runtime::spawn(async move {
             let _ = tx.send(None);
-            // Da tiempo a que salga el mensaje que quita la actividad antes de cerrar.
+
             tokio::time::sleep(Duration::from_millis(300)).await;
             drop(tx);
         });
@@ -263,13 +246,11 @@ mod tests {
         let (tx, mut rx) = watch::channel(Some(json!({ "details": "Minecraft 1.21.4", "state": "Jugando" })));
         let task = tokio::spawn(async move { session(client, "1543151181990469702", &mut rx, &log).await });
 
-        // 1. Saludo con el ID de la aplicación.
         let (op, hello) = read_frame(&mut server).await.unwrap();
         assert_eq!(op, OP_HANDSHAKE);
         assert_eq!(hello["client_id"], "1543151181990469702");
         assert_eq!(hello["v"], 1);
 
-        // 2. READY → publica la actividad inicial.
         write_frame(&mut server, OP_FRAME, &json!({ "evt": "READY", "data": { "user": { "username": "alex" } } })).await.unwrap();
         let (op, set) = read_frame(&mut server).await.unwrap();
         assert_eq!(op, OP_FRAME);
@@ -277,24 +258,20 @@ mod tests {
         assert_eq!(set["args"]["activity"]["details"], "Minecraft 1.21.4");
         assert_eq!(set["args"]["pid"], std::process::id());
 
-        // 3. PING → PONG con el mismo contenido.
         write_frame(&mut server, OP_PING, &json!({ "n": 7 })).await.unwrap();
         let (op, pong) = read_frame(&mut server).await.unwrap();
         assert_eq!(op, OP_PONG);
         assert_eq!(pong["n"], 7);
 
-        // 4. Cambia la actividad.
         tx.send(Some(json!({ "details": "Otra", "state": "Jugando" }))).unwrap();
         let (_, set) = read_frame(&mut server).await.unwrap();
         assert_eq!(set["args"]["activity"]["details"], "Otra");
 
-        // 5. Quitar la actividad: SET_ACTIVITY sin «activity».
         tx.send(None).unwrap();
         let (_, clear) = read_frame(&mut server).await.unwrap();
         assert_eq!(clear["cmd"], "SET_ACTIVITY");
         assert!(clear["args"].get("activity").is_none());
 
-        // 6. Soltar el emisor cierra la sesión.
         drop(tx);
         tokio::time::timeout(Duration::from_secs(2), task).await.expect("la sesión debía terminar").unwrap();
 

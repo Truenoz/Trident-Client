@@ -1,7 +1,5 @@
 'use strict';
-// «Jugar sin cuenta»: pide un nombre de jugador y abre una sesión local (modo offline).
-// window.prompt() no está disponible en el WebView del launcher y la política CSP bloquea los <script> dentro del HTML,
-// por eso esto es un archivo aparte y el nombre se pide con una ventana propia.
+
 (function () {
   const button = document.getElementById('btn-offline-login');
   if (!button) return;
@@ -21,10 +19,9 @@
     try { return localStorage.getItem(LAST_KEY) || ''; } catch { return ''; }
   }
   function saveName(name) {
-    try { localStorage.setItem(LAST_KEY, name); } catch { /* sin almacenamiento */ }
+    try { localStorage.setItem(LAST_KEY, name); } catch {  }
   }
 
-  // Ventana para escribir el nombre. Devuelve el nombre, o null si se cancela.
   function askName() {
     return new Promise((resolve) => {
       let finished = false;

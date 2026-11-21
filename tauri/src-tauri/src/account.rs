@@ -1,8 +1,3 @@
-// Cuenta: inicio de sesión con Microsoft (mismo flujo y misma aplicación que `msmc` en la versión Electron),
-// modo sin cuenta (offline) y almacenamiento de la sesión.
-//
-//   Ventana de Microsoft → código → token de Microsoft → Xbox Live → XSTS → token de Minecraft → perfil.
-
 use crate::dl;
 use base64::Engine;
 use md5::{Digest, Md5};
@@ -11,11 +6,10 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
-// Aplicación de Microsoft que usa msmc (la del launcher de Minecraft) y su dirección de retorno.
 const CLIENT_ID: &str = "00000000402b5328";
 const REDIRECT: &str = "https://login.live.com/oauth20_desktop.srf";
 const TOKEN_URL: &str = "https://login.live.com/oauth20_token.srf";
-/// Inicio del mensaje cuando Microsoft rechaza el token (distinto de «no hay internet»).
+
 const REJECTED: &str = "Microsoft rechazó el inicio de sesión";
 const SCOPE: &str = "XboxLive.signin offline_access";
 
@@ -23,18 +17,18 @@ const SCOPE: &str = "XboxLive.signin offline_access";
 pub struct Session {
     pub offline: bool,
     pub name: String,
-    /// UUID tal como lo muestra la interfaz (Microsoft: sin guiones · sin cuenta: con guiones).
+
     pub id: String,
     pub access_token: String,
     pub xuid: String,
-    /// `msa` (Microsoft) o `mojang` (sin cuenta), como lo espera `--userType`.
+
     pub user_type: String,
     pub skins: Value,
     pub refresh_token: Option<String>,
 }
 
 impl Session {
-    /// Lo que ve la interfaz (igual que `accountInfo()` de la versión Electron).
+
     pub fn info(&self) -> Value {
         json!({ "name": self.name, "uuid": self.id, "offline": self.offline })
     }
@@ -44,9 +38,6 @@ impl Session {
     }
 }
 
-// ───────────────────────── Sin cuenta (offline) ─────────────────────────
-
-/// UUID de jugador sin cuenta: igual que el servidor vanilla (`OfflinePlayer:<nombre>`, MD5 versión 3).
 pub fn offline_uuid(name: &str) -> String {
     let mut d: [u8; 16] = Md5::digest(format!("OfflinePlayer:{name}").as_bytes()).into();
     d[6] = (d[6] & 0x0f) | 0x30;
@@ -73,9 +64,6 @@ pub fn offline_session(raw_name: &str) -> Result<Session, String> {
     })
 }
 
-// ───────────────────────── Microsoft ─────────────────────────
-
-/// Abre la ventana de inicio de sesión de Microsoft y espera el código de autorización.
 async fn oauth_code(app: &AppHandle) -> Result<String, String> {
     if let Some(old) = app.get_webview_window("ms-login") {
         let _ = old.close();
@@ -122,7 +110,6 @@ async fn oauth_code(app: &AppHandle) -> Result<String, String> {
         .build()
         .map_err(|e| format!("No se pudo abrir la ventana de Microsoft: {e}"))?;
 
-    // Si el usuario cierra la ventana sin terminar, se cancela.
     let on_close = send.clone();
     win.on_window_event(move |e| {
         if let tauri::WindowEvent::Destroyed = e {
@@ -142,7 +129,6 @@ fn urlenc(s: &str) -> String {
         .unwrap_or_default()
 }
 
-/// Pide un token a Microsoft (código de autorización o refresh token). Devuelve (access_token, refresh_token).
 async fn ms_token(form: &[(&str, &str)]) -> Result<(String, String), String> {
     let res = dl::client()
         .post(TOKEN_URL)
@@ -174,7 +160,6 @@ async fn post_json(url: &str, body: Value, what: &str) -> Result<(u16, Value), S
     Ok((status, json))
 }
 
-/// ¿El error es un rechazo de Microsoft (sesión vencida o revocada) y no un problema de conexión?
 pub fn is_rejected(err: &str) -> bool {
     err.starts_with(REJECTED)
 }
@@ -189,7 +174,6 @@ pub fn xsts_error(code: u64) -> &'static str {
     }
 }
 
-/// Del token de Microsoft al token y perfil de Minecraft.
 async fn minecraft_session(ms_access: &str, ms_refresh: String) -> Result<Session, String> {
     let (st, xbl) = post_json(
         "https://user.auth.xboxlive.com/user/authenticate",
@@ -254,7 +238,6 @@ async fn minecraft_session(ms_access: &str, ms_refresh: String) -> Result<Sessio
     })
 }
 
-/// El token de Minecraft es un JWT; el `xuid` (id de Xbox) va en su contenido y se pasa al juego como `--xuid`.
 fn jwt_xuid(token: &str) -> String {
     token
         .split('.')
@@ -277,7 +260,6 @@ pub async fn login(app: &AppHandle) -> Result<Session, String> {
     minecraft_session(&access, refresh).await
 }
 
-/// Renueva la sesión con el refresh token guardado (sin abrir ninguna ventana).
 pub async fn refresh(refresh_token: &str) -> Result<Session, String> {
     let (access, new_refresh) = ms_token(&[
         ("client_id", CLIENT_ID),
@@ -289,11 +271,6 @@ pub async fn refresh(refresh_token: &str) -> Result<Session, String> {
     let keep = if new_refresh.is_empty() { refresh_token.to_string() } else { new_refresh };
     minecraft_session(&access, keep).await
 }
-
-// ───────────────────────── Sesión guardada ─────────────────────────
-// account.bin: 3 caracteres de etiqueta + datos.
-//   N1: = cifrado con DPAPI (esta versión, Windows)     P1: = texto plano (solo si no hay DPAPI)
-//   E1: = cifrado por Electron (safeStorage): Tauri no puede leerlo, hay que iniciar sesión una vez.
 
 pub fn save_refresh(user_dir: &Path, token: &str) {
     let blob = match protect(token.as_bytes()) {
@@ -322,9 +299,6 @@ pub fn load_refresh(user_dir: &Path) -> Option<String> {
 pub fn clear_refresh(user_dir: &Path) {
     let _ = std::fs::remove_file(user_dir.join("account.bin"));
 }
-
-// offline.json: el nombre de «Jugar sin cuenta», para no tener que escribirlo cada vez que se abre el launcher.
-// No es secreto (es solo un nombre), así que no se cifra.
 
 pub fn save_offline(user_dir: &Path, name: &str) {
     let _ = std::fs::create_dir_all(user_dir);
@@ -393,7 +367,7 @@ mod tests {
 
     #[test]
     fn uuid_offline_igual_que_vanilla() {
-        // Valores conocidos del servidor vanilla en modo offline.
+
         assert_eq!(offline_uuid("Notch"), "b50ad385-829d-3141-a216-7e7d7539ba7f");
         assert_eq!(offline_uuid("Steve"), "5627dd98-e6be-3c21-b8a8-e92344183641");
     }

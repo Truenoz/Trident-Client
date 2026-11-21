@@ -1,12 +1,3 @@
-// Actualizaciones automáticas del launcher (plugin updater de Tauri + `latest.json` en GitHub Releases).
-// Misma experiencia que tenía la versión Electron:
-//  - Al abrir el launcher (y cada 30 min) se busca. Si hay una versión nueva aparece el cartel «Actualización disponible».
-//  - Minecraft cerrado: cuenta regresiva de 10 s y el launcher se actualiza solo (baja, cierra, instala y se reabre).
-//  - Minecraft abierto: es manual. El usuario toca el cartel y elige «Continuar» (baja ya; se instala al cerrar
-//    Minecraft) o «Cancelar».
-// Estados que recibe la interfaz por `update:status` (kind: 'launcher'):
-//   checking | none | available | countdown (seconds) | downloading (percent) | ready (waitingGame, installing) | error
-
 use serde_json::{json, Value};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -20,15 +11,12 @@ const FIRST_CHECK: Duration = Duration::from_secs(3);
 const CHECK_EVERY: Duration = Duration::from_secs(30 * 60);
 const INSTALL_DELAY: Duration = Duration::from_millis(1500);
 
-// ───────────────────────── Máquina de estados (sin red, probada en los tests) ─────────────────────────
-
-/// Lo que hay que hacer después de cada paso.
 #[derive(Debug, PartialEq)]
 pub enum Step {
     Nothing,
-    /// Avisar a la interfaz.
+
     Emit(Value),
-    /// Avisar y arrancar la cuenta regresiva (`u64` = turno: un tic de un turno viejo no hace nada).
+
     Countdown(Value, u64),
     Download,
     Install,
@@ -40,9 +28,9 @@ pub struct Flow {
     downloading: bool,
     ready: bool,
     install_on_exit: bool,
-    /// Versión que el usuario frenó: no vuelve a empezar sola.
+
     cancelled_for: Option<String>,
-    /// Turno de la cuenta regresiva activa (None = no hay cuenta regresiva).
+
     countdown: Option<u64>,
     turn: u64,
     seconds: u32,
@@ -69,7 +57,6 @@ impl Flow {
         launcher("available", json!({ "version": self.version }))
     }
 
-    /// Mientras hay una actualización pendiente no se muestra «buscando…» para que el cartel no parpadee.
     pub fn checking(&self) -> Step {
         if self.pending() || self.downloading {
             Step::Nothing
@@ -108,7 +95,6 @@ impl Flow {
         Step::Countdown(launcher("countdown", json!({ "version": self.version, "seconds": self.seconds })), self.turn)
     }
 
-    /// Un segundo de la cuenta regresiva. Si mientras tanto se abrió Minecraft, pasa a manual.
     pub fn tick(&mut self, turn: u64, game_running: bool) -> Step {
         if self.countdown != Some(turn) {
             return Step::Nothing;
@@ -134,7 +120,6 @@ impl Flow {
         Step::Download
     }
 
-    /// El usuario tocó el cartel: se frena la cuenta regresiva mientras decide.
     pub fn hold(&mut self) -> Step {
         if !self.pending() || self.downloading {
             return Step::Nothing;
@@ -144,7 +129,6 @@ impl Flow {
         Step::Emit(self.available())
     }
 
-    /// «Continuar».
     pub fn start(&mut self, game_running: bool) -> Result<Step, String> {
         if self.version.is_none() {
             return Err("No hay ninguna actualización disponible.".to_string());
@@ -174,7 +158,6 @@ impl Flow {
         }
     }
 
-    /// La descarga falló: se avisa y el cartel vuelve a «disponible» para reintentar.
     pub fn download_failed(&mut self) -> Value {
         self.downloading = false;
         self.available()
@@ -184,7 +167,6 @@ impl Flow {
         launcher("ready", json!({ "version": self.version, "installing": true }))
     }
 
-    /// Minecraft se cerró: si había una actualización esperando, se instala ahora.
     pub fn game_exited(&mut self) -> Step {
         if self.ready && self.install_on_exit {
             self.install_on_exit = false;
@@ -195,8 +177,6 @@ impl Flow {
     }
 }
 
-// ───────────────────────── Conexión con Tauri ─────────────────────────
-
 #[derive(Default)]
 pub struct LiveUpdate {
     flow: Mutex<Flow>,
@@ -204,7 +184,6 @@ pub struct LiveUpdate {
     bytes: Mutex<Option<Vec<u8>>>,
 }
 
-/// En `tauri dev` no hay instalador que reemplazar: las actualizaciones solo funcionan en la app instalada.
 pub fn supported() -> bool {
     !cfg!(debug_assertions) && nova::repo().is_some()
 }
@@ -217,7 +196,6 @@ fn emit(app: &AppHandle, payload: Value) {
     let _ = app.emit("update:status", payload);
 }
 
-/// Deja constancia en «Registro» para poder ver qué pasó con la actualización.
 fn note(app: &AppHandle, msg: impl AsRef<str>) {
     game::log(app, format!("[Actualizador] {}", msg.as_ref()));
 }
@@ -257,7 +235,6 @@ fn run(app: &AppHandle, step: Step) {
     }
 }
 
-/// URL de `latest.json`: siempre el del último release publicado del repositorio de `trident.config.json`.
 fn endpoint() -> Option<tauri::Url> {
     let repo = nova::repo()?;
     tauri::Url::parse(&format!("https://github.com/{repo}/releases/latest/download/latest.json")).ok()
@@ -357,8 +334,6 @@ async fn download(app: &AppHandle) {
     }
 }
 
-/// Cierra el launcher y ejecuta el instalador nuevo (modo pasivo: solo una barra de progreso). El instalador
-/// reemplaza la app en la misma carpeta y la vuelve a abrir. Los datos del usuario no se tocan.
 fn install(app: &AppHandle) {
     if let Some(v) = with_flow(app, |f| f.installing()) {
         emit(app, v);
@@ -377,10 +352,6 @@ fn install(app: &AppHandle) {
     });
 }
 
-// ───────────────────────── Lo que usa main.rs y game.rs ─────────────────────────
-
-/// Busca la actualización del launcher y, de paso, los jars de Nova Client republicados.
-/// Devuelve lo mismo que Electron: `{ launcher: 'checked'|'skipped'|'unsupported'|'error', mods: [...] }`.
 pub async fn check(app: &AppHandle, manual: bool) -> Value {
     let launcher_state = check_launcher(app).await.unwrap_or("error");
     if manual && launcher_state == "unsupported" {
@@ -406,7 +377,6 @@ pub async fn check(app: &AppHandle, manual: bool) -> Value {
     json!({ "launcher": launcher_state, "mods": mods })
 }
 
-/// Al abrir (a los 3 s) y cada 30 minutos.
 pub fn schedule(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -451,7 +421,7 @@ mod tests {
         let Step::Countdown(v, turn) = s else { panic!("{s:?}") };
         assert_eq!(v["seconds"], 10);
         assert_eq!(v["version"], "1.2.0");
-        // Mientras corre la cuenta regresiva, otra búsqueda no la reinicia ni muestra «buscando…».
+
         assert_eq!(f.found("1.2.0", false), Step::Nothing);
         assert_eq!(f.checking(), Step::Nothing);
         for left in (1..10).rev() {
@@ -493,9 +463,9 @@ mod tests {
         let Step::Countdown(_, turn) = f.found("2.0.0", false) else { panic!() };
         assert_eq!(state(&f.hold()), "available");
         assert_eq!(f.tick(turn, false), Step::Nothing);
-        // La búsqueda siguiente encuentra la misma versión: se muestra el cartel pero sin cuenta regresiva.
+
         assert_eq!(state(&f.found("2.0.0", false)), "available");
-        // Una versión distinta sí vuelve a contar.
+
         assert!(matches!(f.found("2.0.1", false), Step::Countdown(..)));
     }
 
@@ -512,7 +482,7 @@ mod tests {
         assert_eq!(f.start(false).unwrap(), Step::Download, "se puede reintentar");
         assert_eq!(f.downloaded(true), Step::Emit(launcher("ready", json!({ "version": "3.0.0", "waitingGame": true }))));
         assert!(f.busy());
-        // Lista y con Minecraft cerrado: «Continuar» instala.
+
         assert_eq!(f.start(false).unwrap(), Step::Install);
     }
 }
