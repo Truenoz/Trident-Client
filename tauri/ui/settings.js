@@ -12,6 +12,17 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.3.7', [
+    'Los mods de rendimiento (Sodium, Iris Shaders, Lithium, FerriteCore, ImmediatelyFast, Entity Culling, BadOptimizations y Mod Menu) se instalan siempre en cada perfil con Trident Client.',
+    'Minecraft arranca con opciones de Java afinadas y prioridad alta: menos tirones y más FPS.',
+    'Los perfiles nuevos empiezan con opciones de video livianas (podés cambiarlas en el juego).',
+    'El launcher gasta mucho menos mientras jugás: frena animaciones, el fondo, las novedades y la vista 3D de la skin.',
+    'El Registro ya no traba el launcher cuando el juego escribe muchas líneas.',
+    'Minecraft abre mucho más rápido: el launcher ya no consulta internet en cada «Jugar» si no hace falta, prepara los mods en paralelo y Java reutiliza lo que cargó la vez anterior.',
+    'Se puede jugar sin internet con versiones ya descargadas.',
+    'Las carpetas de datos ahora se llaman «Trident Client» y «.tridentclient» (se pasan solas desde las de Nova Client, sin perder nada).',
+    'Al desinstalar se borra todo: ajustes, cuenta, perfiles, mundos, mods y el juego descargado. Las actualizaciones no borran nada.'
+  ]],
   ['1.3.6', [
     'Nueva pantalla de mantenimiento, con el mismo diseño que la web: cuenta regresiva, mensaje del equipo y acceso a Discord.',
     'Arreglado: en la 1.3.5 el aviso de mantenimiento no aparecía.'
@@ -44,7 +55,7 @@ const CHANGELOG = [
     'Perfiles: cada perfil tiene su propia carpeta, versión, mods y mundos.',
     'Detalle de perfil con contenido, mundos, registros, ajustes y compartir.',
     'Buscador de mods y paquetes de recursos de Modrinth con dependencias.',
-    'Mods de rendimiento (Sodium, Lithium, FerriteCore…) con un interruptor.',
+    'Mods de rendimiento (Sodium, Lithium, FerriteCore…).',
     'Selector de cargador, exportar / importar perfiles y códigos para compartir.',
     'Servidores guardados con entrada directa.',
     'Nueva ventana de configuración y colores de acento.',

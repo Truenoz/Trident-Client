@@ -7,12 +7,13 @@
 ;
 ; 1) Migración desde la versión Electron: si está instalada, se desinstala en silencio antes de copiar
 ;    los archivos nuevos, así no quedan dos «Nova Client» en «Aplicaciones instaladas».
-;    Los datos del usuario NO se tocan: viven en %APPDATA%\Nova Client y %APPDATA%\.novalauncher, y el
+;    Los datos del usuario NO se tocan: viven en %APPDATA%\Trident Client y %APPDATA%\.tridentclient (antes Nova Client y .novalauncher), y el
 ;    desinstalador de Electron recibe /KEEP_APP_DATA (además, la versión Electron nunca borró datos).
 ; 2) Nova Client con Tauri (versión 1.2.0): también se desinstala en silencio. Su desinstalador, sin la casilla
 ;    «borrar datos» (que en modo silencioso no se marca), deja todos los datos.
 ; 3) Si quien abrió este instalador fue el actualizador de la versión Electron (pasa «--updated /S --force-run»),
 ;    Trident Client se abre solo al terminar, como hacía electron-updater.
+; 4) Al desinstalar de verdad se borran todos los datos (ver NSIS_HOOK_POSTUNINSTALL, al final).
 
 ; Clave de la versión Electron en el registro: UUID v5 de appId «com.novalauncher.app» con el espacio de nombres
 ; de electron-builder (50e065bc-3134-11e6-9bab-38c9862bdaf3). Es fija mientras appId no cambie.
@@ -89,5 +90,48 @@
     Exec '"$INSTDIR\${MAINBINARYNAME}.exe"'
   ${EndIf}
   ClearErrors
+  Pop $R0
+!macroend
+
+; 4) Desinstalar = borrar TODO: ajustes, cuenta, perfiles, mundos, mods, el juego descargado, Java, cachés
+;    (también las carpetas viejas de Nova Client) y los datos de la ventana (WebView2).
+;    NO se borra nada cuando el desinstalador lo corre el propio instalador para reinstalar o actualizar
+;    (Tauri le pasa /UPDATE o /P): ahí la idea es conservar todo. Solo cuando la persona desinstala de verdad
+;    (desde «Aplicaciones instaladas» o el acceso de desinstalar).
+!macro NSIS_HOOK_POSTUNINSTALL
+  Push $R0
+  Push $R1
+  StrCpy $R1 0
+  ClearErrors
+  ${GetOptions} $CMDLINE "/UPDATE" $R0
+  ${IfNot} ${Errors}
+    StrCpy $R1 1
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $CMDLINE "/P" $R0
+  ${IfNot} ${Errors}
+    StrCpy $R1 1
+  ${EndIf}
+  ClearErrors
+
+  ${If} $R1 = 0
+    SetShellVarContext current
+    DetailPrint "Borrando todos los datos de Trident Client…"
+    RMDir /r "$APPDATA\Trident Client"
+    RMDir /r "$APPDATA\.tridentclient"
+    RMDir /r "$APPDATA\Nova Client"
+    RMDir /r "$APPDATA\.novalauncher"
+    RMDir /r "$APPDATA\com.novalauncher.app"
+    RMDir /r "$LOCALAPPDATA\com.novalauncher.app"
+    ; Inicio con Windows (nombre nuevo y viejo) y su estado en el Administrador de tareas.
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Trident Client"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Nova Client"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "Trident Client"
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "Nova Client"
+    ; La carpeta de instalación, si quedó vacía.
+    RMDir "$INSTDIR"
+  ${EndIf}
+
+  Pop $R1
   Pop $R0
 !macroend

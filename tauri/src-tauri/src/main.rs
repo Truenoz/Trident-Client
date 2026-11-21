@@ -32,10 +32,10 @@ use tauri_plugin_opener::OpenerExt;
 
 type Res = Result<Value, String>;
 
-/// Rutas de datos. Son las MISMAS que usa la versión Electron, para que quien ya tiene Nova Client
-/// conserve ajustes, perfiles y el juego:
-///   user_dir = %APPDATA%\Nova Client      (settings.json, profiles.json, account.bin, mod-cache…)
-///   game_dir = %APPDATA%\.novalauncher    (versiones, instancias, mundos, Java)
+/// Rutas de datos:
+///   user_dir = %APPDATA%\Trident Client   (settings.json, profiles.json, account.bin, mod-cache…)
+///   game_dir = %APPDATA%\.tridentclient   (versiones, instancias, mundos, Java)
+/// Quien venía de Nova Client tenía «Nova Client» y «.novalauncher»: se renombran solas al abrir (ver `data_dirs`).
 pub struct AppState {
     pub user_dir: PathBuf,
     pub game_dir: PathBuf,
@@ -44,6 +44,38 @@ pub struct AppState {
 }
 
 static MAXIMIZED: AtomicBool = AtomicBool::new(false);
+
+/// Carpeta nueva; si todavía no existe y está la vieja, se renombra (así se conservan ajustes, cuenta,
+/// perfiles, mundos y el juego ya descargado). Si no se puede renombrar (un archivo en uso), se sigue
+/// usando la vieja y se reintenta la próxima vez que se abra el launcher.
+fn migrate_dir(new: PathBuf, old: PathBuf) -> (PathBuf, bool) {
+    if new.exists() || !old.exists() {
+        return (new, false);
+    }
+    match std::fs::rename(&old, &new) {
+        Ok(()) => (new, true),
+        Err(e) => {
+            eprintln!("No se pudo renombrar {} → {}: {e}", old.display(), new.display());
+            (old, false)
+        }
+    }
+}
+
+/// (user_dir, game_dir) con las carpetas de Trident, pasando los datos de Nova Client si hacía falta.
+fn data_dirs(roaming: &Path) -> (PathBuf, PathBuf) {
+    let (user_dir, _) = migrate_dir(roaming.join("Trident Client"), roaming.join("Nova Client"));
+    let old_game = roaming.join(".novalauncher");
+    let (game_dir, moved) = migrate_dir(roaming.join(".tridentclient"), old_game.clone());
+    // «Ruta de Java» elegida dentro de la carpeta vieja (por ejemplo un Java que bajó el launcher): se corrige.
+    if moved {
+        let s = settings::read(&user_dir);
+        if let Some(rest) = s.get("javaPath").and_then(|v| v.as_str()).and_then(|p| p.strip_prefix(&*old_game.to_string_lossy())) {
+            let fixed = format!("{}{}", game_dir.to_string_lossy(), rest);
+            let _ = settings::write(&user_dir, &serde_json::json!({ "javaPath": fixed }));
+        }
+    }
+    (user_dir, game_dir)
+}
 
 fn open_folder(app: &tauri::AppHandle, dir: &Path) -> Result<(), String> {
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
@@ -383,12 +415,6 @@ fn perf_get(app: tauri::AppHandle, id: String) -> Res {
 }
 
 #[tauri::command]
-async fn perf_set(app: tauri::AppHandle, id: String, patch: Value) -> Res {
-    not_running(&app, &id)?;
-    content::set_perf(&env(&app), &id, &patch).await
-}
-
-#[tauri::command]
 async fn worlds_list(app: tauri::AppHandle, id: String) -> Res {
     let e = env(&app);
     blocking(move || content::list_worlds(&e, &id)).await
@@ -526,7 +552,30 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 
 #[cfg(test)]
 mod tests {
-    use super::civil_from_days;
+    use super::*;
+
+    #[test]
+    fn pasa_los_datos_de_nova_a_trident() {
+        let root = std::env::temp_dir().join(format!("trident-migra-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("Nova Client")).unwrap();
+        std::fs::create_dir_all(root.join(".novalauncher/runtime/jre-21/bin")).unwrap();
+        std::fs::write(root.join("Nova Client/profiles.json"), "{}").unwrap();
+        let java = root.join(".novalauncher/runtime/jre-21/bin/javaw.exe");
+        settings::write(&root.join("Nova Client"), &serde_json::json!({ "javaPath": java.to_string_lossy() })).unwrap();
+
+        let (u, g) = data_dirs(&root);
+        assert_eq!(u, root.join("Trident Client"));
+        assert_eq!(g, root.join(".tridentclient"));
+        assert!(u.join("profiles.json").exists() && !root.join("Nova Client").exists());
+        assert!(g.join("runtime/jre-21/bin").exists() && !root.join(".novalauncher").exists());
+        let jp = settings::read(&u)["javaPath"].as_str().unwrap().to_string();
+        assert!(jp.starts_with(&*g.to_string_lossy()), "{jp}");
+
+        // Segunda vez: ya está todo en las carpetas nuevas.
+        assert_eq!(data_dirs(&root), (root.join("Trident Client"), root.join(".tridentclient")));
+        let _ = std::fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn fechas_civiles() {
@@ -656,13 +705,14 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             let roaming = app.path().data_dir().map_err(|e| e.to_string())?;
+            let (user_dir, game_dir) = data_dirs(&roaming);
             let state = AppState {
-                // Se mantiene la carpeta de la época de Nova Client: así se conservan ajustes, cuenta y perfiles.
-                user_dir: roaming.join("Nova Client"),
-                game_dir: roaming.join(".novalauncher"),
+                user_dir,
+                game_dir,
                 rt: game::Runtime::default(),
                 updates: updater::LiveUpdate::default(),
             };
+            dl::set_checks_file(state.user_dir.join("checks.json"));
             let current = settings::read(&state.user_dir);
             if let Err(e) = profiles::ensure_default(&state.user_dir, &current) {
                 eprintln!("No se pudo crear el perfil inicial: {e}");
@@ -745,7 +795,6 @@ fn main() {
             content_pick_local,
             content_add_local,
             perf_get,
-            perf_set,
             worlds_list,
             worlds_open,
             logs_read,

@@ -17,7 +17,7 @@ const RETRY: Duration = Duration::from_secs(15);
 
 pub type Log = Arc<dyn Fn(String) + Send + Sync>;
 
-/// ID de la aplicación de Discord: el de Ajustes manda, si no el de nova.config.json.
+/// ID de la aplicación de Discord: el de Ajustes manda, si no el de trident.config.json.
 pub fn client_id(settings: &Map<String, Value>) -> String {
     let own = settings.get("discordClientId").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if !own.is_empty() {
@@ -248,7 +248,7 @@ mod tests {
     #[test]
     fn el_id_de_ajustes_manda_sobre_la_config() {
         let mut s = Map::new();
-        assert!(is_valid_id(&client_id(&s)), "debe usar el de nova.config.json");
+        assert!(is_valid_id(&client_id(&s)), "debe usar el de trident.config.json");
         s.insert("discordClientId".into(), json!(" 111111111111111111 "));
         assert_eq!(client_id(&s), "111111111111111111");
     }

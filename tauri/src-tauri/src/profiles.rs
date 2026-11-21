@@ -386,14 +386,6 @@ pub fn dir_of(user_dir: &Path, game_dir: &Path, id: &str) -> Result<PathBuf, Str
     Ok(instance_dir(&s.arr("profiles")[i], game_dir))
 }
 
-/// Cambia campos «crudos» de un perfil (rendimiento, etc.) sin pasar por la validación de `update`.
-pub fn modify<F: FnOnce(&mut Value)>(user_dir: &Path, id: &str, f: F) -> Result<(), String> {
-    let mut s = Store::load(user_dir);
-    let i = s.find(id)?;
-    f(&mut s.arr_mut("profiles")[i]);
-    s.save(user_dir)
-}
-
 /// Nombres de todos los perfiles (para la depuración).
 pub fn ids(user_dir: &Path) -> Vec<String> {
     Store::load(user_dir)

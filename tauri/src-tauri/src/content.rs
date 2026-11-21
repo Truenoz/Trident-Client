@@ -20,14 +20,17 @@ use std::time::{Duration, UNIX_EPOCH};
 
 const MODRINTH: &str = "https://api.modrinth.com/v2";
 
-/// Mods de rendimiento que se administran desde la tarjeta «Rendimiento» del perfil: (clave, slug, nombre).
+/// Mods de rendimiento: se instalan siempre en todos los perfiles con Fabric (no se pueden apagar).
+/// (clave, slug de Modrinth, nombre). Si un mod no tiene versión para ese Minecraft, se omite.
 pub const PERF_MODS: &[(&str, &str, &str)] = &[
     ("sodium", "sodium", "Sodium"),
-    ("immediatelyfast", "immediatelyfast", "ImmediatelyFast"),
-    ("entityculling", "entityculling", "Entity Culling"),
+    ("iris", "iris", "Iris Shaders"),
     ("lithium", "lithium", "Lithium"),
     ("ferritecore", "ferrite-core", "FerriteCore"),
-    ("modernfix", "modernfix", "ModernFix"),
+    ("immediatelyfast", "immediatelyfast", "ImmediatelyFast"),
+    ("entityculling", "entityculling", "Entity Culling"),
+    ("badoptimizations", "badoptimizations", "BadOptimizations"),
+    ("modmenu", "modmenu", "Mod Menu"),
 ];
 
 /// Lo que necesitan las funciones de este módulo: carpetas, registro y aviso de progreso.
@@ -822,15 +825,8 @@ pub async fn sync_all(env: &Env, id: &str) -> u32 {
 
 // ───────────────────────── Rendimiento ─────────────────────────
 
-fn perf_state(p: &Value) -> (bool, Vec<String>) {
-    let master = p["perf"]["master"].as_bool().unwrap_or(false);
-    let off = p["perf"]["off"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()).unwrap_or_default();
-    (master, off)
-}
-
 pub fn get_perf(env: &Env, id: &str) -> Result<Value, String> {
     let p = env.profile(id)?;
-    let (master, off) = perf_state(&p);
     let idx = read_index(&inst_of(&p));
     let mut by_key: HashMap<String, &Value> = HashMap::new();
     for meta in idx.files.values() {
@@ -844,13 +840,12 @@ pub fn get_perf(env: &Env, id: &str) -> Result<Value, String> {
             json!({
                 "key": key,
                 "name": name,
-                "enabled": !off.iter().any(|k| k == key),
                 "installed": by_key.contains_key(*key),
                 "version": by_key.get(*key).and_then(|m| m["versionNumber"].as_str()).unwrap_or("")
             })
         })
         .collect();
-    Ok(json!({ "available": is_fabric(&p), "master": master, "mods": mods }))
+    Ok(json!({ "available": is_fabric(&p), "mods": mods }))
 }
 
 fn remove_perf_files(dir: &Path, only: Option<&str>) {
@@ -872,7 +867,7 @@ fn remove_perf_files(dir: &Path, only: Option<&str>) {
     let _ = write_index(dir, &idx);
 }
 
-/// Instala los mods de rendimiento que falten (y quita los apagados). Cada uno falla por separado.
+/// Instala los mods de rendimiento que falten. Cada uno falla por separado (sin internet se juega igual).
 pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
     let p = env.profile(id)?;
     if !is_fabric(&p) {
@@ -880,16 +875,17 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
     }
     let dir = inst_of(&p);
     let mc = p["mc"].as_str().unwrap_or("").to_string();
-    let (master, off) = perf_state(&p);
-    if !master {
-        remove_perf_files(&dir, None);
-        return Ok(());
+    // Mods que estaban en la lista vieja (ModernFix, Dynamic FPS…) y ya no: se quitan.
+    let old: Vec<String> = read_index(&dir)
+        .files
+        .values()
+        .filter_map(|m| m["managed"].as_str().and_then(|g| g.strip_prefix("perf:")).map(|k| k.to_string()))
+        .filter(|k| !PERF_MODS.iter().any(|(key, _, _)| key == k))
+        .collect();
+    for k in old {
+        remove_perf_files(&dir, Some(&k));
     }
     for (key, slug, name) in PERF_MODS {
-        if off.iter().any(|k| k == key) {
-            remove_perf_files(&dir, Some(key));
-            continue;
-        }
         let idx = read_index(&dir);
         let tag = format!("perf:{key}");
         let have: Vec<(&String, &Value)> = idx.files.iter().filter(|(_, f)| f["managed"].as_str() == Some(tag.as_str())).collect();
@@ -903,9 +899,15 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
         } else if !have.is_empty() {
             continue;
         }
+        // Si hace poco se vio que no existe para esta versión, no se vuelve a preguntar en cada «Jugar».
+        let none_key = format!("perf-none:{slug}:{mc}");
+        if crate::dl::checked_recently(&none_key, 24) {
+            continue;
+        }
         let step = async {
             let Some(version) = best_version(&p, slug, "mod", true).await? else {
                 (env.log)(format!("[Rendimiento] {name} no tiene una versión para Minecraft {mc}, se omite."));
+                crate::dl::mark_checked(&none_key);
                 return Ok::<(), String>(());
             };
             let (title, icon) = project_info(slug).await?;
@@ -918,26 +920,6 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
         }
     }
     Ok(())
-}
-
-pub async fn set_perf(env: &Env, id: &str, patch: &Value) -> Result<Value, String> {
-    let p = env.profile(id)?;
-    let (mut master, mut off) = perf_state(&p);
-    if let Some(m) = patch["master"].as_bool() {
-        master = m;
-    }
-    if let (Some(key), Some(enabled)) = (patch["key"].as_str(), patch["enabled"].as_bool()) {
-        if !PERF_MODS.iter().any(|(k, _, _)| *k == key) {
-            return Err("Mod desconocido.".to_string());
-        }
-        off.retain(|k| k != key);
-        if !enabled {
-            off.push(key.to_string());
-        }
-    }
-    profiles::modify(&env.user_dir, id, |p| p["perf"] = json!({ "master": master, "off": off }))?;
-    ensure_perf(env, id).await?;
-    get_perf(env, id)
 }
 
 // ───────────────────────── Mundos y registros ─────────────────────────
@@ -1008,7 +990,6 @@ pub fn snapshot(env: &Env, id: &str) -> Result<Value, String> {
             "title": meta["title"]
         }));
     }
-    let (master, off) = perf_state(&p);
     Ok(json!({
         "format": "nova-profile",
         "v": 1,
@@ -1016,7 +997,8 @@ pub fn snapshot(env: &Env, id: &str) -> Result<Value, String> {
         "mc": p["mc"],
         "loader": p["loader"],
         "nova": truthy(&p["nova"]),
-        "perf": { "master": master, "off": off },
+        // Para launchers viejos: los mods de rendimiento ahora están siempre activos.
+        "perf": { "master": true, "off": [] },
         "content": content
     }))
 }
@@ -1063,9 +1045,6 @@ pub async fn import_data(env: &Env, data: &Value) -> Result<Value, String> {
         &json!({ "name": data["name"], "mc": data["mc"], "loader": data["loader"], "nova": data["nova"], "origin": "pack" }),
     )?;
     let id = created["id"].as_str().unwrap_or("").to_string();
-    let off: Vec<Value> = data["perf"]["off"].as_array().cloned().unwrap_or_default();
-    let master = truthy(&data["perf"]["master"]);
-    profiles::modify(&env.user_dir, &id, |p| p["perf"] = json!({ "master": master, "off": off }))?;
     let real = env.profile(&id)?;
     let content = data["content"].as_array().cloned().unwrap_or_default();
     let total = content.len();
@@ -1422,14 +1401,11 @@ mod tests {
         assert!(prog.lock().unwrap().iter().any(|t| t.starts_with("Instalando Cool Mod (1/1)")));
         assert_eq!(prog.lock().unwrap().last().unwrap(), "");
 
-        // Rendimiento: se activa el interruptor general y ningún mod de la lista existe en el servidor falso → se omiten sin fallar.
-        let pf = set_perf(&e, &id, &json!({ "master": true })).await.unwrap();
-        assert_eq!(pf["master"], true);
-        assert_eq!(pf["mods"].as_array().unwrap().len(), 6);
+        // Rendimiento: siempre activo; ningún mod de la lista existe en el servidor falso → se omiten sin fallar.
+        ensure_perf(&e, &id).await.unwrap();
+        let pf = get_perf(&e, &id).unwrap();
+        assert_eq!(pf["mods"].as_array().unwrap().len(), PERF_MODS.len());
         assert!(logs.lock().unwrap().iter().any(|m| m.starts_with("[Rendimiento] Sodium")));
-        let pf = set_perf(&e, &id, &json!({ "key": "lithium", "enabled": false })).await.unwrap();
-        assert_eq!(pf["mods"][3]["enabled"], false);
-        assert!(set_perf(&e, &id, &json!({ "key": "nada", "enabled": true })).await.is_err());
 
         let _ = std::fs::remove_dir_all(&tmp);
     }

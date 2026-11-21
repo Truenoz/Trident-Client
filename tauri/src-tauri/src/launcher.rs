@@ -1,7 +1,7 @@
 // Núcleo del lanzador (reemplaza a minecraft-launcher-core): lee el JSON de la versión (con herencia, para Fabric),
 // aplica las reglas de Mojang, descarga cliente / librerías / recursos y arma la línea de comandos de Java.
 //
-// Estructura de carpetas idéntica a la de la versión Electron (`%APPDATA%\.novalauncher`):
+// Estructura de carpetas idéntica a la de la versión Electron (`%APPDATA%\.tridentclient`; antes `.novalauncher`):
 //   versions/<id>/<id>.json|.jar · libraries/ · assets/{indexes,objects,log_configs}/
 
 use crate::dl;
@@ -152,7 +152,16 @@ pub fn load_version(root: &Path, id: &str) -> Result<Value, String> {
 }
 
 /// Descarga `versions/<id>/<id>.json` desde el manifiesto de Mojang si todavía no está. Devuelve el tipo (`release`…).
+/// JSON de la versión ya descargado (las versiones publicadas no cambian: no hace falta internet).
+fn local_version_json(root: &Path, id: &str) -> Option<Value> {
+    let t = std::fs::read_to_string(version_json_path(root, id)).ok()?;
+    serde_json::from_str::<Value>(t.trim_start_matches('\u{feff}')).ok().filter(|v| v["id"].is_string())
+}
+
 pub async fn ensure_vanilla_json(root: &Path, id: &str) -> Result<String, String> {
+    if let Some(v) = local_version_json(root, id) {
+        return Ok(v["type"].as_str().unwrap_or("release").to_string());
+    }
     let manifest = dl::get_json(MANIFEST_URL).await?;
     let entry = manifest["versions"]
         .as_array()
@@ -172,7 +181,10 @@ pub async fn ensure_vanilla_json(root: &Path, id: &str) -> Result<String, String
 }
 
 /// Versión mayor de Java que pide Mojang para esa versión (8 si no lo dice).
-pub async fn required_java_major(id: &str) -> Result<u32, String> {
+pub async fn required_java_major(root: &Path, id: &str) -> Result<u32, String> {
+    if let Some(v) = local_version_json(root, id) {
+        return Ok(v["javaVersion"]["majorVersion"].as_u64().unwrap_or(8) as u32);
+    }
     let manifest = dl::get_json(MANIFEST_URL).await?;
     let url = manifest["versions"]
         .as_array()

@@ -64,7 +64,13 @@ pub fn get_session(app: &AppHandle) -> Option<Session> {
     app.state::<AppState>().rt.session.lock().ok().and_then(|g| g.clone())
 }
 
+/// Cuándo se renovó por última vez la sesión de Microsoft (el token de Minecraft dura 24 h).
+static SESSION_FRESH: std::sync::Mutex<Option<std::time::Instant>> = std::sync::Mutex::new(None);
+
 fn establish(app: &AppHandle, s: Session) -> Value {
+    if !s.offline {
+        *SESSION_FRESH.lock().unwrap_or_else(|e| e.into_inner()) = Some(std::time::Instant::now());
+    }
     let user_dir = app.state::<AppState>().user_dir.clone();
     // Se guarda la sesión que quedó iniciada (Microsoft o sin cuenta) y se borra la otra.
     match &s.refresh_token {
@@ -174,26 +180,30 @@ async fn prepare_profile(app: &AppHandle, profile: &Value, inst: &Path, root: &P
             log(app, format!("[Sincronización] {n} elemento(s) actualizado(s)."));
         }
     }
-    status(app, "preparing", "Preparando mods de rendimiento…", None);
-    if let Err(e) = content::ensure_perf(&env, pid).await {
-        log(app, format!("[Rendimiento] {e}"));
-    }
-
+    // Mods de rendimiento y mod de Trident a la vez (no se pisan: son archivos distintos).
+    status(app, "preparing", "Preparando mods…", None);
     remove_nova_jars(&mods_dir);
-    let mut with_nova = false;
-    if profile["nova"].as_bool().unwrap_or(false) {
-        status(app, "preparing", "Buscando Trident Client…", None);
+    let perf = async {
+        if let Err(e) = content::ensure_perf(&env, pid).await {
+            log(app, format!("[Rendimiento] {e}"));
+        }
+    };
+    let trident = async {
+        if !profile["nova"].as_bool().unwrap_or(false) {
+            return false;
+        }
         let user_dir = app.state::<AppState>().user_dir.clone();
         let logger = |m: String| log(app, m);
         match nova::ensure_jar(&user_dir, &mc, &logger).await {
             Ok(Some(jar)) => match nova::install_jar(&jar, &mods_dir.join("trident-client.jar"), &logger) {
-                Ok(()) => with_nova = true,
-                Err(e) => log(app, format!("[Trident] No se pudo copiar el mod: {e}")),
+                Ok(()) => true,
+                Err(e) => { log(app, format!("[Trident] No se pudo copiar el mod: {e}")); false }
             },
-            Ok(None) => log(app, format!("[Trident] No hay mod de Trident para Minecraft {mc}. Se inicia solo con Fabric.")),
-            Err(e) => log(app, format!("[Trident] Error al preparar el mod: {e}")),
+            Ok(None) => { log(app, format!("[Trident] No hay mod de Trident para Minecraft {mc}. Se inicia solo con Fabric.")); false }
+            Err(e) => { log(app, format!("[Trident] Error al preparar el mod: {e}")); false }
         }
-    }
+    };
+    let ((), with_nova) = tokio::join!(perf, trident);
     Ok((custom, with_nova))
 }
 
@@ -210,6 +220,40 @@ fn memory_args(ram_gb: f64) -> [String; 2] {
     let max = ((ram_gb * 1024.0).round() as u64).max(512);
     let min = (((ram_gb.clamp(1.0, 2.0)) * 1024.0).round() as u64).min(max);
     [format!("-Xms{min}M"), format!("-Xmx{max}M")]
+}
+
+/// Opciones de Java afinadas para Minecraft (recolector G1 con pausas cortas: menos tirones).
+/// Si el jugador ya eligió un recolector en «Argumentos de Java», se respetan los suyos.
+pub fn perf_jvm_flags(user_jvm: &[String]) -> Vec<String> {
+    let own_gc = user_jvm.iter().any(|a| a.starts_with("-XX:+Use") && a.ends_with("GC"));
+    if own_gc {
+        return Vec::new();
+    }
+    [
+        "-XX:+UnlockExperimentalVMOptions",
+        "-XX:+UseG1GC",
+        "-XX:G1NewSizePercent=20",
+        "-XX:G1ReservePercent=20",
+        "-XX:MaxGCPauseMillis=50",
+        "-XX:G1HeapRegionSize=16M",
+        "-XX:+ParallelRefProcEnabled",
+        "-XX:+DisableExplicitGC",
+        "-XX:+PerfDisableSharedMem",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
+}
+
+/// Opciones de video livianas para un perfil nuevo (solo si todavía no tiene options.txt;
+/// nunca se toca lo que el jugador ya configuró). Minecraft completa el resto con sus valores.
+pub fn default_options(inst: &Path) {
+    let file = inst.join("options.txt");
+    if file.exists() {
+        return;
+    }
+    let _ = std::fs::create_dir_all(inst);
+    let _ = std::fs::write(file, "renderDistance:10\nsimulationDistance:8\nenableVsync:false\nmaxFps:144\n");
 }
 
 /// Línea de comandos completa (sin el ejecutable de Java).
@@ -278,6 +322,7 @@ pub fn build_command(
 
     let mut args: Vec<String> = Vec::new();
     args.extend(memory_args(ram_gb));
+    args.extend(perf_jvm_flags(user_jvm));
     args.extend(user_jvm.iter().cloned());
     args.extend(json_jvm);
     if let Some(l) = &prep.logging_arg {
@@ -358,14 +403,18 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
 
     // Minecraft (JSON de la versión) y Java
     let version_type = launcher::ensure_vanilla_json(&game_dir, &mc).await?;
-    let major = launcher::required_java_major(&mc).await?;
+    let major = launcher::required_java_major(&game_dir, &mc).await?;
     let java_setting = settings.get("javaPath").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let java_path = java::ensure_java(&game_dir, &java_setting, major, &progress_prep).await?;
 
-    // Renueva el token de Minecraft si la sesión es de Microsoft.
-    if let Some(t) = get_session(app).and_then(|s| s.refresh_token) {
-        if let Ok(fresh) = account::refresh(&t).await {
-            establish(app, fresh);
+    // Renueva el token de Minecraft si la sesión es de Microsoft y tiene más de 12 h
+    // (se renueva al abrir el launcher, así que casi nunca hace falta esperar esto al jugar).
+    let stale = SESSION_FRESH.lock().unwrap_or_else(|e| e.into_inner()).is_none_or(|t| t.elapsed() > std::time::Duration::from_secs(12 * 3600));
+    if stale {
+        if let Some(t) = get_session(app).and_then(|s| s.refresh_token) {
+            if let Ok(fresh) = account::refresh(&t).await {
+                establish(app, fresh);
+            }
         }
     }
     let session = get_session(app).ok_or("La sesión se cerró mientras se preparaba el juego.")?;
@@ -388,6 +437,15 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
         .unwrap_or(4.0);
     let mut user_jvm = split_args(settings.get("jvmArgs").and_then(|v| v.as_str()).unwrap_or(""));
     user_jvm.extend(split_args(profile["jvmArgs"].as_str().unwrap_or("")));
+    // Arranque más rápido (Java 21+ con el Java del launcher): Java guarda las clases ya cargadas
+    // y las reutiliza la próxima vez. Se arma solo; si algo cambia, lo vuelve a armar.
+    if java_setting.trim().is_empty() && major >= 21 && !user_jvm.iter().any(|a| a.contains("SharedArchiveFile")) {
+        let cds_dir = game_dir.join("cache").join("cds");
+        if std::fs::create_dir_all(&cds_dir).is_ok() {
+            user_jvm.insert(0, format!("-XX:SharedArchiveFile={}", cds_dir.join(format!("{launch_id}.jsa")).display()));
+            user_jvm.insert(0, "-XX:+AutoCreateSharedArchive".to_string());
+        }
+    }
     let net_url = nova::net_url(&settings);
     let nova_net = (with_nova && net_url.starts_with("http") && !net_url.contains(char::is_whitespace)).then_some(net_url.as_str());
     let server = opts["server"].as_str().map(|s| s.trim()).filter(|s| !s.is_empty());
@@ -397,6 +455,7 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
         &app.package_info().version.to_string(), server, &mc, nova_net,
     );
 
+    default_options(&inst);
     let mut cmd = tokio::process::Command::new(&java_path);
     cmd.args(&plan)
         .current_dir(&inst)
@@ -404,7 +463,7 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
     #[cfg(windows)]
-    cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    cmd.creation_flags(0x0800_0000 | 0x0000_8000); // CREATE_NO_WINDOW | ABOVE_NORMAL_PRIORITY_CLASS (más FPS con otros programas abiertos)
     let mut child = cmd.spawn().map_err(|e| {
         format!("No se pudo iniciar el juego ({}): {e}. Revisá el registro para más detalles.", java_path.display())
     })?;
@@ -550,6 +609,25 @@ pub fn stop(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn perf_flags_respetan_el_recolector_del_jugador() {
+        assert!(perf_jvm_flags(&[]).contains(&"-XX:+UseG1GC".to_string()));
+        assert!(perf_jvm_flags(&["-XX:+UseZGC".to_string()]).is_empty());
+        assert!(!perf_jvm_flags(&["-Dfoo=1".to_string()]).is_empty());
+    }
+
+    #[test]
+    fn default_options_no_pisa_lo_del_jugador() {
+        let dir = std::env::temp_dir().join(format!("trident-opts-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        default_options(&dir);
+        assert!(std::fs::read_to_string(dir.join("options.txt")).unwrap().contains("simulationDistance:8"));
+        std::fs::write(dir.join("options.txt"), "renderDistance:32\n").unwrap();
+        default_options(&dir);
+        assert_eq!(std::fs::read_to_string(dir.join("options.txt")).unwrap(), "renderDistance:32\n");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn quick_play_por_version() {

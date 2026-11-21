@@ -52,7 +52,10 @@
       }
     },
     "licenseFile": "license.txt",
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": false,
+    "resources": {
+      "../ui/logo.png": "logo.png"
+    }
   },
   "plugins": {
     "updater": {

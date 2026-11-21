@@ -159,10 +159,27 @@ function notify(text) {
   $('bell-dot').classList.remove('hidden');
 }
 
+// El juego puede escribir cientos de líneas por segundo: se juntan y se agregan de una vez
+// (como mucho 4 veces por segundo, y solo si el Registro está a la vista).
+const logQueue = { lines: [], timer: 0, size: 0 };
 function appendLog(line) {
+  logQueue.lines.push(line.endsWith('\n') ? line : `${line}\n`);
+  if (logQueue.lines.length > 4000) logQueue.lines.splice(0, logQueue.lines.length - 3000);
+  if (!logQueue.timer) logQueue.timer = setTimeout(flushLog, 250);
+}
+function flushLog() {
+  logQueue.timer = 0;
+  if (!logQueue.lines.length) return;
+  if (state.view !== 'console' || document.hidden) { logQueue.timer = setTimeout(flushLog, 1000); return; }
   const atBottom = els.log.scrollTop + els.log.clientHeight >= els.log.scrollHeight - 30;
-  els.log.textContent += line.endsWith('\n') ? line : `${line}\n`;
-  if (els.log.textContent.length > 200000) els.log.textContent = els.log.textContent.slice(-150000);
+  const chunk = logQueue.lines.join('');
+  logQueue.lines = [];
+  els.log.append(chunk);
+  logQueue.size += chunk.length;
+  if (logQueue.size > 200000) {
+    els.log.textContent = els.log.textContent.slice(-150000);
+    logQueue.size = els.log.textContent.length;
+  }
   if (atBottom) els.log.scrollTop = els.log.scrollHeight;
 }
 
@@ -178,6 +195,7 @@ function goTo(view, opts) {
   if (view === 'profiles') renderProfiles();
   if (view === 'detail') renderDetail(opts.id, opts.tab);
   if (view === 'browse') renderBrowse();
+  if (view === 'console') flushLog();
   if (view === 'home') { homeMods.stale = true; renderHome(); }
 }
 
@@ -558,11 +576,13 @@ window.launcher.onStatus(async ({ state: s, text, percent, profileId }) => {
     state.activeId = profileId || state.activeId;
     setProgress(text, percent);
   }
+  // Con el juego abierto, el launcher frena animaciones y adornos para dejarle todo el equipo a Minecraft.
+  document.body.classList.toggle('game-running', state.running);
   if (before !== `${state.busy}|${state.running}|${state.activeId}`) renderAll();
 });
 
 window.launcher.onLog(appendLog);
-els.btnClearLog.addEventListener('click', () => { els.log.textContent = ''; });
+els.btnClearLog.addEventListener('click', () => { els.log.textContent = ''; logQueue.lines = []; logQueue.size = 0; });
 
 window.launcher.onProfileProgress(({ text }) => {
   if (text) toast(text);
@@ -1036,7 +1056,11 @@ function showNews(i) {
 function scheduleNews() {
   clearInterval(news.timer);
   news.timer = null;
-  if (news.count > 1) news.timer = setInterval(() => showNews(news.index + 1), 7000);
+  if (news.count > 1) {
+    news.timer = setInterval(() => {
+      if (state.view === 'home' && !document.hidden && !state.running) showNews(news.index + 1);
+    }, 7000);
+  }
 }
 
 async function loadNews() {

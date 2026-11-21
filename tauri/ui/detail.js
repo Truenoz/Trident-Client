@@ -12,7 +12,6 @@ const detail = {
   query: '',
   selected: new Set(),
   perf: null,
-  perfBusy: false,
   left: null,
   right: null,
   progressText: null,
@@ -159,39 +158,19 @@ function perfCard(p) {
     card.append(head, h('p', { class: 'muted small', text: 'Cargando…' }));
     return card;
   }
-  head.append(toggle(perf.master, (v, input) => setPerf(input, { master: v }), 'Mods de rendimiento'));
+  head.append(h('span', { class: 'perf-badge', text: 'Siempre activo' }));
   card.append(head);
-  if (perf.master) {
-    const list = h('div', { class: 'perf-list' });
-    for (const m of perf.mods) {
-      list.append(h('div', { class: 'perf-item' },
-        h('div', { class: 'grow' },
-          h('div', { class: 'perf-name' }, m.name, icon('chevRight', 12)),
-          h('span', { class: 'muted tiny', text: m.installed ? `Versión del mod: ${m.version}` : m.enabled ? 'Se instala al jugar' : 'Desactivado' })),
-        toggle(m.enabled, (v, input) => setPerf(input, { key: m.key, enabled: v }), m.name)));
-    }
-    card.append(list);
+  const list = h('div', { class: 'perf-list' });
+  for (const m of perf.mods) {
+    list.append(h('div', { class: 'perf-item' },
+      h('div', { class: 'grow' },
+        h('div', { class: 'perf-name', text: m.name }),
+        h('span', { class: 'muted tiny', text: m.installed ? `Versión del mod: ${m.version}` : 'Se instala al jugar' })),
+      h('span', { class: `perf-state${m.installed ? ' on' : ''}`, title: m.installed ? 'Instalado' : 'Pendiente', 'aria-label': m.installed ? 'Instalado' : 'Pendiente' })));
   }
+  card.append(list, h('p', { class: 'muted tiny', text: 'Se instalan solos en cada perfil con Trident Client para que el juego vaya más fluido. Si un mod no existe para tu versión, se omite.' }));
   card.append(h('p', { class: 'muted tiny legal', text: 'Trident Client (sin afiliación) no posee los derechos de estos mods. Son mods públicos de Modrinth.' }));
   return card;
-}
-
-async function setPerf(input, patch) {
-  if (detail.perfBusy) { input.checked = !input.checked; return; }
-  detail.perfBusy = true;
-  const id = detail.id;
-  toast('Aplicando cambios de rendimiento…');
-  try {
-    detail.perf = await call(window.launcher.setPerf(id, patch));
-    toast('Listo.');
-  } catch (e) {
-    toast(e.message, 'error');
-    try { detail.perf = await call(window.launcher.getPerf(id)); } catch { /* se deja como estaba */ }
-  } finally {
-    detail.perfBusy = false;
-    if (detail.id === id) renderDetailLeft();
-    loadContent();
-  }
 }
 
 // ───────────────────────── Panel derecho ─────────────────────────

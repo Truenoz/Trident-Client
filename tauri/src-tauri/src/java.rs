@@ -1,5 +1,5 @@
 // Java automático (igual que ensureJava de la versión Electron): usa la ruta de Ajustes si existe;
-// si no, baja un JRE de Eclipse Temurin a `.novalauncher/runtime/jre-<N>`.
+// si no, baja un JRE de Eclipse Temurin a `.tridentclient/runtime/jre-<N>`.
 
 use crate::{dl, launcher::Progress};
 use std::path::{Path, PathBuf};

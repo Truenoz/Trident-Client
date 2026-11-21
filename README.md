@@ -86,7 +86,7 @@ Todo esto necesita el servidor **Nova Net** (carpeta `server/`). Sin servidor el
 #### Poner en marcha Nova Net
 
 1. En una máquina que quede encendida (un VPS, Render, Railway, Fly… o tu PC para probar) con Node 18+: `node server/server.js` (o `npm run server`). Puerto por defecto 8787 (`PORT`). Los datos quedan en `server/data/novanet.json` (`NOVANET_DATA` para cambiarlo). Detrás de un proxy (nginx, Render…) poné `TRUST_PROXY=1`.
-2. Ponelo con HTTPS y copiá la URL en `nova.config.json` → `"novaNetUrl": "https://tu-servidor"` (o en Ajustes → `novaNetUrl` de `settings.json`). El launcher se la pasa al juego con `-Dnovaclient.net=…`. A mano también sirve `config/novaclient/network.json` → `{"url": "https://tu-servidor"}`.
+2. Ponelo con HTTPS y copiá la URL en `trident.config.json` → `"novaNetUrl": "https://tu-servidor"` (o en Ajustes → `novaNetUrl` de `settings.json`). El launcher se la pasa al juego con `-Dnovaclient.net=…`. A mano también sirve `config/novaclient/network.json` → `{"url": "https://tu-servidor"}`.
 3. Probar el servidor: `npm run test:server` (usa un modo de desarrollo que no consulta a Mojang; `NOVANET_DEV_AUTH=1` **nunca** en producción).
 
 Seguridad: la cuenta se verifica con el protocolo de sesión de Mojang (`join` / `hasJoined`); el token de Minecraft solo viaja a Mojang, nunca a Nova Net, y no se piden contraseñas. El servidor limita los pedidos por IP y por cuenta.
@@ -140,8 +140,8 @@ Discord muestra el **nombre de una aplicación suya**, así que hay que crear un
 
 1. Entrá a <https://discord.com/developers/applications> → **New Application** → nombre: **Trident Client** (ese nombre es lo que aparece en «Jugando a …»). Si ya tenías la aplicación «Nova Client», alcanza con cambiarle el nombre ahí mismo.
 2. En **General Information** copiá el **Application ID**.
-3. Pegalo en `nova.config.json` → `"discordClientId": "123456789012345678"` (o en Ajustes de `settings.json`, campo `discordClientId`).
-4. Imagen (opcional): en **Rich Presence → Art Assets** subí el logo (`tauri/ui/logo.png`) con el nombre `logo`, esperá unos minutos y poné `"discordLargeImage": "logo"` en `nova.config.json`. Sin eso no se muestra imagen (si la clave no existe en Discord se ve un «?»).
+3. Pegalo en `trident.config.json` → `"discordClientId": "123456789012345678"` (o en Ajustes de `settings.json`, campo `discordClientId`).
+4. Imagen (opcional): en **Rich Presence → Art Assets** subí el logo (`tauri/ui/logo.png`) con el nombre `logo`, esperá unos minutos y poné `"discordLargeImage": "logo"` en `trident.config.json`. Sin eso no se muestra imagen (si la clave no existe en Discord se ve un «?»).
 
 Con Discord abierto, al apretar JUGAR tu perfil pasa a «Jugando Trident Client · Minecraft 1.21.4 · Jugando con Nova Client» con el tiempo transcurrido, y se limpia al cerrar el juego. Se puede apagar en Ajustes.
 
@@ -151,7 +151,7 @@ Todo el repositorio (launcher, servidor Nova Net y mod, incluido Box Client) es 
 
 ## Actualizaciones en vivo
 
-Funciona con **GitHub Releases** (repositorio en `nova.config.json` → `githubRepo`).
+Funciona con **GitHub Releases** (repositorio en `trident.config.json` → `githubRepo`).
 
 - **El launcher** se actualiza solo (plugin updater de Tauri, lee `latest.json`): busca al abrir y cada 30 minutos. Con Minecraft cerrado aparece «Actualización disponible · se instala en 10 s», se descarga, se cierra, se instala sobre la misma carpeta y se vuelve a abrir. Con Minecraft abierto es manual (tocando el cartel) y se instala al cerrar el juego. Solo en la app instalada (no en `npm run dev`).
 - **Nova Client** se actualiza **sin reinstalar nada**: antes de cada JUGAR (y con «Buscar ahora») el launcher baja los `nova-client-<versión>.jar` republicados en el release `mods-rolling`.
@@ -188,7 +188,7 @@ Los mods no se compilan ahí: se publican desde tu PC con `npm run publish:mods`
 ```
 tauri/src-tauri/   Launcher (Rust): cuenta, descargas, lanzamiento, contenido, Discord, bandeja, actualizaciones
 tauri/ui/          Interfaz (HTML, CSS, JS) + launcher-shim.js, el puente con Rust
-nova.config.json   ID de Discord, repositorio de GitHub y servidor de amigos (lo usa también Tauri)
+trident.config.json   ID de Discord, repositorio de GitHub y servidor de amigos (lo usa también Tauri)
 server/            Nova Net: amistades, presencia y mensajes (Node, sin dependencias)
 client-mod/        Mod de Fabric "Nova Client" (Java, Gradle)
 scripts/           Compilar y publicar los jars del mod (npm run build:mod / publish:mods)

@@ -324,8 +324,12 @@
 
     let raf = 0;
     let running = true;
+    // No se dibuja si no se ve (otra pantalla, ventana oculta o el juego abierto): ahorra GPU y CPU.
     function frame(t) {
       if (!running) return;
+      const idle = document.hidden || !host.isConnected || host.offsetParent === null ||
+        document.body.classList.contains('game-running');
+      if (idle) { raf = 0; setTimeout(() => { if (running && !raf) raf = requestAnimationFrame(frame); }, 500); return; }
       draw(t);
       raf = requestAnimationFrame(frame);
     }

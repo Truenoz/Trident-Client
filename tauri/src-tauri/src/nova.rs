@@ -8,15 +8,15 @@ use std::time::Duration;
 
 use crate::dl;
 
-// Configuración del repositorio en nova.config.json (GitHub, Discord, servidor de amigos).
-const CONFIG: &str = include_str!("../../../nova.config.json");
+// Configuración del repositorio en trident.config.json (GitHub, Discord, servidor de amigos).
+const CONFIG: &str = include_str!("../../../trident.config.json");
 const ROLLING_TAG: &str = "mods-rolling";
 
 fn config() -> Value {
     serde_json::from_str(CONFIG.trim_start_matches('\u{feff}')).unwrap_or(Value::Null)
 }
 
-/// Texto de una clave de `nova.config.json` (vacío si no existe).
+/// Texto de una clave de `trident.config.json` (vacío si no existe).
 pub fn config_string(key: &str) -> String {
     config()[key].as_str().unwrap_or("").trim().to_string()
 }
@@ -28,7 +28,7 @@ pub fn repo() -> Option<String> {
     ok.then_some(r)
 }
 
-/// Servidor de amistades: el de Ajustes manda, si no el de nova.config.json. Vacío = sin amigos en línea.
+/// Servidor de amistades: el de Ajustes manda, si no el de trident.config.json. Vacío = sin amigos en línea.
 pub fn net_url(settings: &serde_json::Map<String, Value>) -> String {
     let own = settings.get("novaNetUrl").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if !own.is_empty() {
@@ -124,6 +124,11 @@ pub async fn ensure_jar(user_dir: &Path, mc: &str, log: &(dyn Fn(String) + Send 
     let cache = user_dir.join("mod-cache");
     let jar = cache.join(format!("nova-client-{mc}.jar"));
     let have = || jar.exists().then(|| jar.clone());
+    // Revisado hace menos de una hora: se usa el que ya está (el juego abre sin esperar a GitHub).
+    let key = format!("trident:{mc}");
+    if jar.exists() && crate::dl::checked_recently(&key, 1) {
+        return Ok(have());
+    }
     let release = match rolling_release().await {
         Ok(Some(r)) => r,
         Ok(None) => {
@@ -132,7 +137,7 @@ pub async fn ensure_jar(user_dir: &Path, mc: &str, log: &(dyn Fn(String) + Send 
                 Some(r) => log(format!(
                     "[Trident] El repositorio {r} no tiene el release «{ROLLING_TAG}» (o es privado): no hay de dónde bajar el mod. Publicá los jars con «npm run publish:mods»."
                 )),
-                None => log("[Trident] Falta «githubRepo» en nova.config.json: no hay de dónde bajar el mod.".to_string()),
+                None => log("[Trident] Falta «githubRepo» en trident.config.json: no hay de dónde bajar el mod.".to_string()),
             }
             return Ok(have());
         }
@@ -143,8 +148,9 @@ pub async fn ensure_jar(user_dir: &Path, mc: &str, log: &(dyn Fn(String) + Send 
             return Ok(have()); // sin conexión
         }
     };
-    if let Err(e) = take_from_release(&cache, &release, mc, log).await {
-        log(format!("[Trident] {e} Se usa lo que hay."));
+    match take_from_release(&cache, &release, mc, log).await {
+        Ok(_) => crate::dl::mark_checked(&key),
+        Err(e) => log(format!("[Trident] {e} Se usa lo que hay.")),
     }
     Ok(have())
 }

@@ -8,24 +8,33 @@ use std::path::Path;
 pub async fn ensure_fabric(root: &Path, mc: &str, progress: Progress<'_>) -> Result<String, String> {
     match install_fabric(root, mc, progress).await {
         Ok(id) => Ok(id),
-        Err(e) => {
-            // Sin internet: usar un Fabric ya instalado, si lo hay.
-            let suffix = format!("-{mc}");
-            let mut old: Vec<String> = std::fs::read_dir(root.join("versions"))
-                .map(|d| {
-                    d.flatten()
-                        .map(|e| e.file_name().to_string_lossy().to_string())
-                        .filter(|n| n.starts_with("fabric-loader-") && n.ends_with(&suffix))
-                        .collect()
-                })
-                .unwrap_or_default();
-            old.sort();
-            old.pop().ok_or(e)
-        }
+        // Sin internet: usar un Fabric ya instalado, si lo hay.
+        Err(e) => installed_fabric(root, mc).ok_or(e),
     }
 }
 
+/// Fabric ya instalado para esa versión (el más nuevo), si lo hay.
+fn installed_fabric(root: &Path, mc: &str) -> Option<String> {
+    let suffix = format!("-{mc}");
+    let mut old: Vec<String> = std::fs::read_dir(root.join("versions"))
+        .ok()?
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .filter(|n| n.starts_with("fabric-loader-") && n.ends_with(&suffix))
+        .filter(|n| crate::launcher::version_json_path(root, n).exists())
+        .collect();
+    old.sort();
+    old.pop()
+}
+
 async fn install_fabric(root: &Path, mc: &str, progress: Progress<'_>) -> Result<String, String> {
+    // Consultado hace poco: no se vuelve a preguntar a Fabric en cada «Jugar».
+    let key = format!("fabric:{mc}");
+    if dl::checked_recently(&key, 24) {
+        if let Some(id) = installed_fabric(root, mc) {
+            return Ok(id);
+        }
+    }
     let loaders = dl::get_json(&format!("https://meta.fabricmc.net/v2/versions/loader/{mc}")).await?;
     let list = loaders.as_array().cloned().unwrap_or_default();
     let pick = list
@@ -45,6 +54,7 @@ async fn install_fabric(root: &Path, mc: &str, progress: Progress<'_>) -> Result
         let text = serde_json::to_string_pretty(&profile).map_err(|e| e.to_string())?;
         std::fs::write(&json_path, text).map_err(|e| e.to_string())?;
     }
+    dl::mark_checked(&key);
     Ok(id)
 }
 
@@ -92,6 +102,10 @@ pub async fn ensure_fabric_api(mc: &str, mods_dir: &Path, progress: Progress<'_>
 }
 
 async fn install_fabric_api(mc: &str, mods_dir: &Path, progress: Progress<'_>) -> Result<(), String> {
+    let key = format!("fabric-api:{}:{mc}", mods_dir.display());
+    if dl::checked_recently(&key, 24) && !existing_api(mods_dir).is_empty() {
+        return Ok(());
+    }
     let url = reqwest::Url::parse_with_params(
         "https://api.modrinth.com/v2/project/fabric-api/version",
         &[("game_versions", serde_json::to_string(&[mc]).unwrap_or_default()), ("loaders", "[\"fabric\"]".to_string())],
@@ -132,6 +146,7 @@ async fn install_fabric_api(mc: &str, mods_dir: &Path, progress: Progress<'_>) -
             return Err("Fabric API se descargó dañada; reintentá".to_string());
         }
     }
+    dl::mark_checked(&key);
     Ok(())
 }
 

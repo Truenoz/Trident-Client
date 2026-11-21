@@ -10,6 +10,49 @@ use tokio::io::AsyncWriteExt;
 
 static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
+// ───────────────────────── Consultas recientes ─────────────────────────
+// Para que el juego abra rápido: lo que se consultó hace poco (Fabric, Fabric API, el mod de Trident…)
+// no se vuelve a pedir a internet en cada «Jugar». Se guarda en disco para que valga entre aperturas.
+static CHECKS_FILE: OnceLock<PathBuf> = OnceLock::new();
+static CHECKS: std::sync::Mutex<Option<serde_json::Map<String, Value>>> = std::sync::Mutex::new(None);
+
+/// Dónde se guardan las consultas (se llama una vez al abrir el launcher).
+pub fn set_checks_file(path: PathBuf) {
+    let _ = CHECKS_FILE.set(path);
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+fn with_checks<R>(f: impl FnOnce(&mut serde_json::Map<String, Value>) -> R) -> R {
+    let mut guard = CHECKS.lock().unwrap_or_else(|e| e.into_inner());
+    let map = guard.get_or_insert_with(|| {
+        CHECKS_FILE
+            .get()
+            .and_then(|p| std::fs::read_to_string(p).ok())
+            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+            .and_then(|v| v.as_object().cloned())
+            .unwrap_or_default()
+    });
+    f(map)
+}
+
+/// ¿Se consultó `key` hace menos de `hours` horas?
+pub fn checked_recently(key: &str, hours: u64) -> bool {
+    with_checks(|m| m.get(key).and_then(|v| v.as_u64()).is_some_and(|t| now_secs().saturating_sub(t) < hours * 3600))
+}
+
+/// Anota que `key` se acaba de consultar.
+pub fn mark_checked(key: &str) {
+    with_checks(|m| {
+        m.insert(key.to_string(), Value::from(now_secs()));
+        if let Some(p) = CHECKS_FILE.get() {
+            let _ = std::fs::write(p, Value::Object(m.clone()).to_string());
+        }
+    });
+}
+
 pub fn user_agent() -> String {
     format!("TridentClient/{}", env!("CARGO_PKG_VERSION"))
 }
@@ -117,4 +160,17 @@ where
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod checks_tests {
+    use super::*;
+
+    #[test]
+    fn consultas_recientes() {
+        assert!(!checked_recently("prueba:nunca", 24));
+        mark_checked("prueba:ahora");
+        assert!(checked_recently("prueba:ahora", 1));
+        assert!(!checked_recently("prueba:ahora", 0));
+    }
 }

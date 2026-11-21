@@ -32,6 +32,7 @@
   function paint(layer, src) { layer.style.backgroundImage = 'url("' + src + '")'; }
 
   async function next() {
+    if (document.body.classList.contains('game-running')) return;   // con el juego abierto no se gasta nada en esto
     const nextIdx = (idx + 1) % files.length;
     const ok = await preload(files[nextIdx]);
     idx = nextIdx;

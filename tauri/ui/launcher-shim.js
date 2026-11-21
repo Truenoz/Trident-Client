@@ -105,7 +105,6 @@
     pickLocalContent: cmd('content_pick_local', (id) => ({ id })),
     addLocalContent: cmd('content_add_local', (id, paths) => ({ id, paths: Array.isArray(paths) ? paths.map(String) : [] })),
     getPerf: cmd('perf_get', (id) => ({ id })),
-    setPerf: cmd('perf_set', (id, patch) => ({ id, patch: patch || {} })),
 
     // ── Mundos, registros y servidores ──
     listWorlds: cmd('worlds_list', (id) => ({ id })),

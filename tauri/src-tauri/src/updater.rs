@@ -257,7 +257,7 @@ fn run(app: &AppHandle, step: Step) {
     }
 }
 
-/// URL de `latest.json`: siempre el del último release publicado del repositorio de `nova.config.json`.
+/// URL de `latest.json`: siempre el del último release publicado del repositorio de `trident.config.json`.
 fn endpoint() -> Option<tauri::Url> {
     let repo = nova::repo()?;
     tauri::Url::parse(&format!("https://github.com/{repo}/releases/latest/download/latest.json")).ok()
