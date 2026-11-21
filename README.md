@@ -81,13 +81,12 @@ El menú **Social** se abre desde la pausa (botón AMIGOS) y desde la pantalla d
 - Un aviso arriba en pantalla te dice cuando llega una solicitud o un mensaje, y un contador naranja en AMIGOS / en el ícono de chat.
 - **Logo de Nova**: quien juega con Nova Client muestra un logito (la luna con estrellas del logo) delante del nombre en la lista TAB y sobre la cabeza. Se ve entre jugadores con Nova Client en el mismo servidor. El logo es `assets/novaclient/textures/font/badge.png` (8×8); se puede cambiar por otro del mismo tamaño.
 
-Todo esto necesita el servidor **Nova Net** (carpeta `server/`). Sin servidor el juego funciona igual, solo que sin amigos ni logos de otros jugadores.
+Todo esto usa el servidor **Trident Net**, que está en línea en `https://api.tridentclient.com` (el código está en la carpeta `trident-net/` del proyecto del mod). El launcher y el juego usan el mismo servidor: una solicitud o un mensaje enviado desde uno aparece en el otro.
 
-#### Poner en marcha Nova Net
-
-1. En una máquina que quede encendida (un VPS, Render, Railway, Fly… o tu PC para probar) con Node 18+: `node server/server.js` (o `npm run server`). Puerto por defecto 8787 (`PORT`). Los datos quedan en `server/data/novanet.json` (`NOVANET_DATA` para cambiarlo). Detrás de un proxy (nginx, Render…) poné `TRUST_PROXY=1`.
-2. Ponelo con HTTPS y copiá la URL en `trident.config.json` → `"novaNetUrl": "https://tu-servidor"` (o en Ajustes → `novaNetUrl` de `settings.json`). El launcher se la pasa al juego con `-Dnovaclient.net=…`. A mano también sirve `config/novaclient/network.json` → `{"url": "https://tu-servidor"}`.
-3. Probar el servidor: `npm run test:server` (usa un modo de desarrollo que no consulta a Mojang; `NOVANET_DEV_AUTH=1` **nunca** en producción).
+- La dirección está en `trident.config.json` → `"novaNetUrl"`. Para usar otra, cambiala ahí o en Ajustes → `novaNetUrl` de `settings.json`.
+- El launcher se la pasa al juego con `-Dtridentclient.net=…`. A mano también sirve `config/tridentclient/network.json` → `{"url": "https://tu-servidor"}`.
+- El panel **Sociales** del launcher (`ui/social.js`) se conecta con los comandos `social_sync`, `social_action` y `social_send` de `src-tauri/src/social.rs`. Solo funciona con cuenta de Microsoft: las cuentas sin conexión no se pueden verificar.
+- La carpeta `server/` es la versión vieja del servidor (Nova Net) y ya no hace falta.
 
 Seguridad: la cuenta se verifica con el protocolo de sesión de Mojang (`join` / `hasJoined`); el token de Minecraft solo viaja a Mojang, nunca a Nova Net, y no se piden contraseñas. El servidor limita los pedidos por IP y por cuenta.
 

@@ -14,6 +14,7 @@ mod nova;
 mod profiles;
 mod settings;
 mod skins;
+mod social;
 mod system;
 mod updater;
 
@@ -596,6 +597,21 @@ fn auth_offline(app: tauri::AppHandle, name: String) -> Res {
 }
 
 #[tauri::command]
+async fn social_sync(app: tauri::AppHandle, after: Option<f64>) -> Res {
+    social::sync(&app, after.unwrap_or(0.0)).await
+}
+
+#[tauri::command]
+async fn social_action(app: tauri::AppHandle, action: String, name: String) -> Res {
+    social::action(&app, &action, &name).await
+}
+
+#[tauri::command]
+async fn social_send(app: tauri::AppHandle, to: String, text: String) -> Res {
+    social::send(&app, &to, &text).await
+}
+
+#[tauri::command]
 fn auth_logout(app: tauri::AppHandle) -> Res {
     game::logout(&app);
     Ok(Value::Null)
@@ -765,6 +781,9 @@ fn main() {
             auth_login,
             auth_offline,
             auth_logout,
+            social_sync,
+            social_action,
+            social_send,
             game_launch,
             game_stop,
             win_minimize,

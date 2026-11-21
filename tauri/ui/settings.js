@@ -8,10 +8,6 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
-  ['1.3.8', [
-    'Se quitó una opción de Java que hacía más lento el arranque de Minecraft en algunas PCs.',
-    'El Registro muestra cuánto tardó el launcher en preparar el juego.'
-  ]],
   ['1.3.7', [
     'Los mods de rendimiento (Sodium, Iris Shaders, Lithium, FerriteCore, ImmediatelyFast, Entity Culling, BadOptimizations y Mod Menu) se instalan siempre en cada perfil con Trident Client.',
     'Minecraft arranca con opciones de Java afinadas y prioridad alta: menos tirones y más FPS.',

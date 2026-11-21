@@ -1,47 +1,51 @@
 'use strict';
 
-const SOCIAL_KEY = 'nova.social.v3';
-const SOCIAL_OLD_KEY = 'dawn.social.v2';
+const SOCIAL_PREFIX = 'trident.social.v4:';
 
 const social = {
-  data: null,
+  data: { chats: [], lastId: 0 },
+  net: { friends: [], incoming: [], outgoing: [], error: '', ready: false },
+  account: '',
   open: false,
   bigModal: null,
   tab: 'chats',
   query: '',
   bigQuery: '',
   chat: null,
+  drafts: {},
+  sig: '',
+  busy: false,
+  timer: null,
   el: {}
 };
 
 const directId = (name) => `u:${name.toLowerCase()}`;
-
-function socialLoad() {
-  try {
-    const raw = JSON.parse(localStorage.getItem(SOCIAL_KEY));
-    if (raw && Array.isArray(raw.chats) && Array.isArray(raw.friends)) return raw;
-  } catch {  }
-  try {
-    const old = JSON.parse(localStorage.getItem(SOCIAL_OLD_KEY));
-    if (old && Array.isArray(old.chats) && Array.isArray(old.friends)) {
-      return {
-        friends: old.friends,
-        chats: old.chats.map((c) => ({ id: directId(c.name), name: c.name, group: false, members: [c.name], messages: c.messages || [] }))
-      };
-    }
-  } catch {  }
-  return { chats: [], friends: [] };
-}
-
-function socialSave() {
-  try { localStorage.setItem(SOCIAL_KEY, JSON.stringify(social.data)); } catch {  }
-}
-
 const sameName = (a, b) => a.toLowerCase() === b.toLowerCase();
 const findChat = (id) => social.data.chats.find((c) => c.id === id);
 const lastMsg = (c) => c.messages[c.messages.length - 1] || null;
 const chatTs = (c) => (lastMsg(c)?.ts || 0);
 const validUser = (name) => /^[A-Za-z0-9_]{3,16}$/.test(name);
+const friendOf = (name) => social.net.friends.find((f) => sameName(f.name, name)) || null;
+const isIncoming = (name) => social.net.incoming.some((n) => sameName(n, name));
+const isOutgoing = (name) => social.net.outgoing.some((n) => sameName(n, name));
+
+function socialLoad(account) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SOCIAL_PREFIX + account.toLowerCase()));
+    if (raw && Array.isArray(raw.chats)) {
+      return {
+        chats: raw.chats.filter((c) => c && !c.group && typeof c.name === 'string' && Array.isArray(c.messages)),
+        lastId: Number(raw.lastId) || 0
+      };
+    }
+  } catch {  }
+  return { chats: [], lastId: 0 };
+}
+
+function socialSave() {
+  if (!social.account) return;
+  try { localStorage.setItem(SOCIAL_PREFIX + social.account.toLowerCase(), JSON.stringify(social.data)); } catch {  }
+}
 
 function shortAgo(ts) {
   if (!ts) return '';
@@ -57,6 +61,20 @@ function shortAgo(ts) {
 const clockTime = (ts) => new Date(ts).toLocaleTimeString('es-AR', { hour: 'numeric', minute: '2-digit' });
 const dayLabel = (ts) => new Date(ts).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
 const dayKey = (ts) => new Date(ts).toDateString();
+
+function statusText(name) {
+  const f = friendOf(name);
+  if (!f) return isOutgoing(name) ? 'Solicitud enviada' : 'No es tu amigo';
+  if (f.status === 'ingame') return f.server ? `Jugando en ${f.server}` : 'Jugando';
+  if (f.status === 'online') return 'En línea';
+  return f.lastSeen ? `Visto ${shortAgo(f.lastSeen).toLowerCase()}` : 'Desconectado';
+}
+
+function statusClass(name) {
+  const f = friendOf(name);
+  if (!f) return '';
+  return f.status === 'ingame' ? ' game' : f.status === 'online' ? ' on' : '';
+}
 
 const headCache = new Map();
 
@@ -88,7 +106,6 @@ async function fetchHead(name) {
 function loadHead(name) {
   const key = name.toLowerCase();
   if (!headCache.has(key)) {
-
     const p = fetchHead(name).catch(() => (key === 'mhf_steve' ? Promise.reject(new Error('sin skin')) : loadHead('MHF_Steve')));
     headCache.set(key, p);
     p.catch(() => headCache.delete(key));
@@ -103,94 +120,119 @@ function socialAvatar(name, size, noDot) {
     wrap.classList.add('fallback');
     wrap.prepend(name.slice(0, 1).toUpperCase());
   });
-  if (!noDot) wrap.append(h('i', { class: 'sa-dot', title: 'Desconectado' }));
+  if (!noDot) wrap.append(h('i', { class: `sa-dot${statusClass(name)}`, title: statusText(name) }));
   return wrap;
 }
 
-function chatAvatar(c, size) {
-  if (!c.group) return socialAvatar(c.name, size);
-  return h('span', { class: 'sa group', style: { width: `${size}px`, height: `${size}px` } }, icon('users', Math.round(size * 0.55)));
+function keepFocus(render) {
+  const a = document.activeElement;
+  const key = a && a.dataset ? a.dataset.keep : null;
+  const caret = key && typeof a.selectionStart === 'number' ? a.selectionStart : null;
+  render();
+  if (!key) return;
+  const next = document.querySelector(`[data-keep="${key}"]`);
+  if (!next) return;
+  next.focus();
+  if (caret !== null && typeof next.setSelectionRange === 'function') next.setSelectionRange(caret, caret);
 }
 
 function socialRefresh() {
-  socialRender();
-  if (social.bigModal) socialRenderBig();
+  keepFocus(() => {
+    socialRender();
+    if (social.bigModal) socialRenderBig();
+  });
 }
 
 function socialOpenChat(id) {
   social.chat = id;
+  const c = findChat(id);
+  if (c && c.unread) { c.unread = 0; socialSave(); }
   if (!social.bigModal) social.open = true;
   socialRefresh();
+  socialSchedule(400);
 }
 
-function socialStartDirect(name) {
+function chatFor(name) {
   const id = directId(name);
   let c = findChat(id);
   if (!c) {
-    const known = social.data.friends.find((f) => sameName(f, name)) || name;
-    c = { id, name: known, group: false, members: [known], messages: [] };
+    const known = friendOf(name)?.name || name;
+    c = { id, name: known, unread: 0, messages: [] };
     social.data.chats.push(c);
-    socialSave();
   }
-  socialOpenChat(c.id);
+  return c;
 }
 
-function socialCreateGroup(name, members) {
-  const c = { id: `g:${Date.now().toString(36)}`, name, group: true, members, messages: [] };
-  social.data.chats.push(c);
+function socialStartDirect(name) {
+  const c = chatFor(name);
   socialSave();
   socialOpenChat(c.id);
 }
 
-function socialAddFriend(name) {
-  if (social.data.friends.some((f) => sameName(f, name))) { toast(`${name} ya está en tu lista.`); return false; }
-  social.data.friends.push(name);
-  socialSave();
-  toast(`${name} agregado a tus amigos.`);
-  socialRefresh();
+async function socialAct(action, name, okText) {
+  const r = await window.launcher.socialAction(action, name);
+  if (!r.ok) { toast(r.error, 'error'); return false; }
+  if (okText) toast(typeof okText === 'function' ? okText(r.data) : okText);
+  await socialPoll(true);
   return true;
 }
 
 function socialRemoveFriend(name) {
   confirmDialog({ title: 'Quitar amigo', text: `¿Quitar a ${name} de tu lista de amigos?`, okLabel: 'Quitar', danger: true })
-    .then((ok) => {
-      if (!ok) return;
-      social.data.friends = social.data.friends.filter((f) => !sameName(f, name));
-      socialSave();
-      socialRefresh();
-    });
+    .then((ok) => { if (ok) socialAct('remove', name, `${name} ya no está en tu lista.`); });
 }
 
-function socialSend(text) {
+async function socialSend(text) {
   const c = findChat(social.chat);
-  if (!c || !text.trim()) return;
-  const who = state?.account?.name || 'Yo';
-  c.messages.push({ from: who, mine: true, text: text.trim(), ts: Date.now() });
+  const t = text.trim();
+  if (!c || !t) return;
+  const who = social.account || state?.account?.name || 'Yo';
+  const msg = { from: who, mine: true, text: t, ts: Date.now(), pending: true };
+  c.messages.push(msg);
+  socialSave();
+  socialRefresh();
+  const r = await window.launcher.socialSend(c.name, t);
+  delete msg.pending;
+  if (!r.ok) {
+    msg.failed = true;
+    toast(r.error, 'error');
+  }
   socialSave();
   socialRefresh();
 }
 
 function socialOpenAddFriend() {
-  const input = h('input', { type: 'text', placeholder: 'Buscar usuarios', spellcheck: 'false', maxlength: '16' });
+  const input = h('input', { type: 'text', placeholder: 'Nombre de Minecraft', spellcheck: 'false', maxlength: '16' });
   const box = h('label', { class: 'sx-search' }, icon('search', 20), input);
-  const out = h('div', { class: 'sm-center' }, h('span', { text: 'Buscar y enviar solicitud de amistad' }));
+  const out = h('div', { class: 'sm-center' }, h('span', { text: 'Escribí el nombre de un jugador que use Trident Client.' }));
 
   const draw = () => {
     const q = input.value.trim();
     out.textContent = '';
-    if (!q) { out.className = 'sm-center'; out.append(h('span', { text: 'Buscar y enviar solicitud de amistad' })); return; }
+    if (!q) { out.className = 'sm-center'; out.append(h('span', { text: 'Escribí el nombre de un jugador que use Trident Client.' })); return; }
     if (!validUser(q)) { out.className = 'sm-center'; out.append(h('span', { text: 'Escribí un nombre de Minecraft válido: 3 a 16 letras, números o _.' })); return; }
     out.className = 'sm-results';
-    const already = social.data.friends.some((f) => sameName(f, q));
-    const add = h('button', { class: 'sm-add', type: 'button', disabled: already, text: already ? 'Ya es tu amigo' : 'Agregar' });
-    add.addEventListener('click', () => { if (socialAddFriend(q)) m.close(); });
+    const me = social.account && sameName(social.account, q);
+    const friend = !!friendOf(q);
+    const sent = isOutgoing(q);
+    const incoming = isIncoming(q);
+    const label = me ? 'Sos vos' : friend ? 'Ya es tu amigo' : sent ? 'Solicitud enviada' : incoming ? 'Aceptar solicitud' : 'Enviar solicitud';
+    const add = h('button', { class: 'sm-add', type: 'button', disabled: me || friend || sent, text: label });
+    add.addEventListener('click', async () => {
+      add.disabled = true;
+      const ok = incoming
+        ? await socialAct('accept', q, `Ahora sos amigo de ${q}.`)
+        : await socialAct('request', q, (d) => (d && d.accepted ? `Ahora sos amigo de ${d.name || q}.` : `Solicitud enviada a ${(d && d.name) || q}.`));
+      if (ok) m.close(); else add.disabled = false;
+    });
     out.append(h('div', { class: 'sr static' },
-      socialAvatar(q, 44),
-      h('span', { class: 'sr-main' }, h('span', { class: 'sr-name', text: q }), h('span', { class: 'sr-sub', text: 'Jugador de Minecraft' })),
+      socialAvatar(q, 44, true),
+      h('span', { class: 'sr-main' }, h('span', { class: 'sr-name', text: q }), h('span', { class: 'sr-sub', text: friend ? statusText(q) : 'Jugador de Minecraft' })),
       add));
   };
   let timer = null;
   input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(draw, 200); });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(timer); draw(); out.querySelector('.sm-add:not([disabled])')?.click(); } });
 
   const m = modal({ title: 'Agregar amigo', icon: 'userPlus', className: 'social-modal', body: [box, out] });
   setTimeout(() => input.focus(), 30);
@@ -200,59 +242,26 @@ function socialOpenNewChat() {
   const input = h('input', { type: 'text', placeholder: 'buscar amigos', spellcheck: 'false' });
   const box = h('label', { class: 'sx-search' }, icon('search', 20), input);
   const list = h('div', { class: 'sm-list' });
-  const hint = h('p', { class: 'sm-hint', text: 'Elige un amigo para empezar a chatear al instante.' });
+  const hint = h('p', { class: 'sm-hint', text: 'Elegí un amigo para empezar a chatear. Te puede contestar desde el launcher o desde el juego.' });
   const body = h('div', { class: 'sm-stack' }, box, list, hint);
-
   const m = modal({ title: 'Nuevo chat', icon: 'chat', className: 'social-modal tall', body: [body] });
 
-  const drawFriends = () => {
+  const draw = () => {
     const q = input.value.trim().toLowerCase();
     list.textContent = '';
-    list.append(h('button', { class: 'sm-group', type: 'button', onclick: drawGroup },
-      h('span', { class: 'sm-tile' }, icon('users', 22)),
-      h('span', { class: 'sr-main' }, h('span', { class: 'sr-name', text: 'Crear chat grupal' }), h('span', { class: 'sr-sub', text: 'Chatea con 2 o más amigos' })),
-      icon('chevRight', 18)));
     list.append(h('div', { class: 'sm-label', text: 'Amigos' }));
-    const items = social.data.friends.filter((f) => !q || f.toLowerCase().includes(q)).sort((a, b) => a.localeCompare(b));
+    const items = sortedFriends().filter((f) => !q || f.name.toLowerCase().includes(q));
     if (!items.length) {
-      list.append(h('div', { class: 'sm-none', text: q ? 'Sin resultados.' : 'Todavía no tenés amigos. Agregá uno con el botón de arriba a la derecha del panel.' }));
+      list.append(h('div', { class: 'sm-none', text: q ? 'Sin resultados.' : 'Todavía no tenés amigos. Agregá uno desde la pestaña Amigos.' }));
     }
     for (const f of items) {
-      list.append(h('button', { class: 'sr', type: 'button', onclick: () => { m.close(); socialStartDirect(f); } },
-        socialAvatar(f, 40),
-        h('span', { class: 'sr-main' }, h('span', { class: 'sr-name', text: f }), h('span', { class: 'sr-sub', text: 'Desconectado' }))));
+      list.append(h('button', { class: 'sr', type: 'button', onclick: () => { m.close(); socialStartDirect(f.name); } },
+        socialAvatar(f.name, 40),
+        h('span', { class: 'sr-main' }, h('span', { class: 'sr-name', text: f.name }), h('span', { class: 'sr-sub', text: statusText(f.name) }))));
     }
   };
-
-  const drawGroup = () => {
-    const picked = new Set();
-    const nameIn = h('input', { type: 'text', class: 'input', placeholder: 'Nombre del grupo', spellcheck: 'false', maxlength: '30' });
-    const rows = h('div', { class: 'sm-list' });
-    const create = h('button', { class: 'ss-green', type: 'button', text: 'Crear grupo', disabled: true });
-    const sync = () => { create.disabled = picked.size < 2; create.textContent = picked.size >= 2 ? `Crear grupo (${picked.size})` : 'Elegí 2 o más amigos'; };
-    const friends = [...social.data.friends].sort((a, b) => a.localeCompare(b));
-    if (!friends.length) rows.append(h('div', { class: 'sm-none', text: 'Necesitás al menos 2 amigos para crear un grupo.' }));
-    for (const f of friends) {
-      const cb = h('input', { type: 'checkbox' });
-      cb.addEventListener('change', () => { if (cb.checked) picked.add(f); else picked.delete(f); sync(); });
-      rows.append(h('label', { class: 'sr pick' }, socialAvatar(f, 40, true),
-        h('span', { class: 'sr-main' }, h('span', { class: 'sr-name', text: f })), cb, h('span', { class: 'mf-box' }, icon('check', 12))));
-    }
-    create.addEventListener('click', () => {
-      const members = [...picked];
-      const name = nameIn.value.trim() || members.slice(0, 3).join(', ');
-      m.close();
-      socialCreateGroup(name, members);
-    });
-    sync();
-    body.textContent = '';
-    body.append(
-      h('button', { class: 'sm-back', type: 'button', onclick: () => { body.textContent = ''; body.append(box, list, hint); drawFriends(); } }, icon('back', 18), 'Volver'),
-      nameIn, rows, create);
-  };
-
-  input.addEventListener('input', drawFriends);
-  drawFriends();
+  input.addEventListener('input', draw);
+  draw();
   setTimeout(() => input.focus(), 30);
 }
 
@@ -266,52 +275,86 @@ function messageList(c) {
     if (newGroup) {
       msgs.append(h('div', { class: 'sc-who' }, socialAvatar(m.from, 24, true), h('span', { class: 'sc-name', text: m.from }), h('span', { class: 'sc-clock', text: clockTime(m.ts) })));
     }
-    msgs.append(h('div', { class: 'sc-row' }, h('span', { class: 'sc-bubble', text: m.text })));
+    const cls = `sc-bubble${m.pending ? ' pending' : ''}${m.failed ? ' failed' : ''}`;
+    msgs.append(h('div', { class: 'sc-row' }, h('span', { class: cls, title: m.failed ? 'No se envió' : '', text: m.text })));
     prev = m;
   }
   setTimeout(() => { msgs.scrollTop = msgs.scrollHeight; }, 0);
   return msgs;
 }
 
-function composer(c) {
-  const input = h('input', { type: 'text', placeholder: `Mensaje ${c.name}`, spellcheck: 'false', maxlength: '500' });
-  const submit = () => { const t = input.value; input.value = ''; socialSend(t); };
+function composer(c, where) {
+  const canWrite = !!friendOf(c.name);
+  const input = h('input', {
+    type: 'text', spellcheck: 'false', maxlength: '256', 'data-keep': `composer-${where}`,
+    placeholder: canWrite ? `Mensaje a ${c.name}` : 'Solo podés escribirles a tus amigos', disabled: !canWrite
+  });
+  input.value = social.drafts[c.id] || '';
+  input.addEventListener('input', () => { social.drafts[c.id] = input.value; });
+  const submit = () => { const t = input.value; input.value = ''; social.drafts[c.id] = ''; socialSend(t); };
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
-  const send = h('button', { class: 'sc-send', type: 'button', title: 'Enviar', 'aria-label': 'Enviar', onclick: submit }, icon('arrowRight', 22));
-  setTimeout(() => input.focus(), 0);
+  const send = h('button', { class: 'sc-send', type: 'button', title: 'Enviar', 'aria-label': 'Enviar', disabled: !canWrite, onclick: submit }, icon('arrowRight', 22));
   return h('div', { class: 'sc-composer' }, input, send);
 }
-
-const subtitle = (c) => (c.group ? `${c.members.length + 1} integrantes` : 'Sin conexión');
 
 function chatRow(c, active) {
   const m = lastMsg(c);
   return h('button', { class: `sr${active ? ' active' : ''}`, type: 'button', onclick: () => socialOpenChat(c.id) },
-    chatAvatar(c, 44),
+    socialAvatar(c.name, 44),
     h('span', { class: 'sr-main' },
       h('span', { class: 'sr-top' },
         h('span', { class: 'sr-name', text: c.name }),
         h('span', { class: 'sr-time', text: shortAgo(m?.ts) })),
-      h('span', { class: 'sr-sub', text: m ? `${m.mine ? 'Tú' : m.from}: ${m.text}` : 'Sin mensajes todavía' })));
+      h('span', { class: 'sr-sub', text: m ? `${m.mine ? 'Tú' : m.from}: ${m.text}` : statusText(c.name) })),
+    c.unread ? h('span', { class: 'sr-badge', text: String(c.unread) }) : null);
 }
 
-function friendRow(name) {
+function friendRow(f) {
   return h('div', { class: 'sr static' },
-    socialAvatar(name, 40),
+    socialAvatar(f.name, 40),
+    h('span', { class: 'sr-main' },
+      h('span', { class: 'sr-name', text: f.name }),
+      h('span', { class: 'sr-sub', text: statusText(f.name) })),
+    h('button', { class: 'sr-act', type: 'button', title: 'Enviar mensaje', 'aria-label': `Enviar mensaje a ${f.name}`, onclick: () => socialStartDirect(f.name) }, icon('chat', 18)),
+    h('button', { class: 'sr-act', type: 'button', title: 'Quitar amigo', 'aria-label': `Quitar a ${f.name}`, onclick: () => socialRemoveFriend(f.name) }, icon('trash', 18)));
+}
+
+function requestRow(name, incoming) {
+  const acts = incoming
+    ? [
+      h('button', { class: 'sr-act ok', type: 'button', title: 'Aceptar', 'aria-label': `Aceptar a ${name}`, onclick: () => socialAct('accept', name, `Ahora sos amigo de ${name}.`) }, icon('check', 18)),
+      h('button', { class: 'sr-act', type: 'button', title: 'Rechazar', 'aria-label': `Rechazar a ${name}`, onclick: () => socialAct('decline', name) }, icon('x', 18))
+    ]
+    : [h('button', { class: 'sr-act', type: 'button', title: 'Cancelar solicitud', 'aria-label': `Cancelar la solicitud a ${name}`, onclick: () => socialAct('cancel', name) }, icon('x', 18))];
+  return h('div', { class: 'sr static' },
+    socialAvatar(name, 40, true),
     h('span', { class: 'sr-main' },
       h('span', { class: 'sr-name', text: name }),
-      h('span', { class: 'sr-sub', text: 'Desconectado' })),
-    h('button', { class: 'sr-act', type: 'button', title: 'Enviar mensaje', 'aria-label': `Enviar mensaje a ${name}`, onclick: () => socialStartDirect(name) }, icon('chat', 18)),
-    h('button', { class: 'sr-act', type: 'button', title: 'Quitar amigo', 'aria-label': `Quitar a ${name}`, onclick: () => socialRemoveFriend(name) }, icon('trash', 18)));
+      h('span', { class: 'sr-sub', text: incoming ? 'Quiere ser tu amigo' : 'Solicitud enviada' })),
+    ...acts);
 }
+
+const RANK = { ingame: 0, online: 1 };
+const sortedFriends = () => [...social.net.friends].sort((a, b) => ((RANK[a.status] ?? 2) - (RANK[b.status] ?? 2)) || a.name.localeCompare(b.name));
 
 const sortedChats = (q) => social.data.chats
   .filter((c) => !q || c.name.toLowerCase().includes(q.trim().toLowerCase()))
   .sort((a, b) => chatTs(b) - chatTs(a));
 
+const unreadTotal = () => social.data.chats.reduce((n, c) => n + (c.unread || 0), 0);
+
+function noticeBox(list) {
+  const e = social.net.error;
+  if (!e && social.net.ready) return false;
+  list.append(h('div', { class: 'ss-empty' },
+    h('strong', { text: e || 'Conectando con tus amigos…' }),
+    e ? h('button', { class: 'ss-green', type: 'button', text: 'Reintentar', onclick: () => socialPoll(true) }) : null));
+  return true;
+}
+
 function listView() {
   const isChats = social.tab === 'chats';
-  const d = social.data;
+  const pending = social.net.incoming.length;
 
   const head = h('div', { class: 'sp-head' }, h('span', { class: 'sp-title', text: 'Sociales' }),
     h('span', { class: 'sp-ctl' },
@@ -321,12 +364,12 @@ function listView() {
   const tabs = h('div', { class: 'st-tabs', role: 'tablist' },
     h('button', { class: `st-tab${isChats ? ' active' : ''}`, type: 'button', role: 'tab', 'aria-selected': String(isChats),
       onclick: () => { social.tab = 'chats'; social.query = ''; socialRender(); } },
-      'Charlas', h('span', { class: 'st-count', text: String(d.chats.length) })),
+      'Charlas', h('span', { class: 'st-count', text: String(unreadTotal() || social.data.chats.length) })),
     h('button', { class: `st-tab${!isChats ? ' active' : ''}`, type: 'button', role: 'tab', 'aria-selected': String(!isChats),
       onclick: () => { social.tab = 'friends'; social.query = ''; socialRender(); } },
-      'Amigos', h('span', { class: 'st-count', text: String(d.friends.length) })));
+      'Amigos', h('span', { class: `st-count${pending ? ' alert' : ''}`, text: String(pending ? `+${pending}` : social.net.friends.length) })));
 
-  const input = h('input', { type: 'text', placeholder: isChats ? 'Buscar chats' : 'buscar amigos', spellcheck: 'false', value: social.query });
+  const input = h('input', { type: 'text', placeholder: isChats ? 'Buscar chats' : 'buscar amigos', spellcheck: 'false', value: social.query, 'data-keep': `search-${social.tab}` });
   input.addEventListener('input', () => { social.query = input.value; socialRenderList(); });
   const label = isChats ? 'Nuevo chat' : 'Agregar amigo';
   const search = h('div', { class: 'ss-row' },
@@ -344,36 +387,61 @@ function socialRenderList() {
   if (social.tab === 'chats') {
     const items = sortedChats(q);
     if (!items.length) {
+      if (!q && noticeBox(list)) return;
       list.append(h('div', { class: 'ss-empty' },
         h('strong', { text: q ? 'Sin resultados' : 'Aún no hay charlas' }),
         q ? null : h('button', { class: 'ss-green', type: 'button', text: 'Nuevo chat', onclick: socialOpenNewChat })));
       return;
     }
     list.append(...items.map((c) => chatRow(c, false)));
-  } else {
-    const items = social.data.friends.filter((f) => !q || f.toLowerCase().includes(q)).sort((a, b) => a.localeCompare(b));
-    if (!items.length) {
-      list.append(h('div', { class: 'ss-empty' },
-        h('strong', { text: q ? 'Sin resultados' : 'Aún no hay amigos :(' }),
-        q ? null : h('button', { class: 'ss-green', type: 'button', text: 'Agregar amigo', onclick: socialOpenAddFriend })));
-      return;
-    }
-    list.append(...items.map(friendRow));
+    return;
+  }
+  if (noticeBox(list)) return;
+  const match = (n) => !q || n.toLowerCase().includes(q);
+  const inc = social.net.incoming.filter(match);
+  const out = social.net.outgoing.filter(match);
+  const friends = sortedFriends().filter((f) => match(f.name));
+  if (inc.length) {
+    list.append(h('div', { class: 'sm-label', text: `Solicitudes (${inc.length})` }));
+    list.append(...inc.map((n) => requestRow(n, true)));
+  }
+  if (friends.length) {
+    if (inc.length || out.length) list.append(h('div', { class: 'sm-label', text: `Amigos (${friends.length})` }));
+    list.append(...friends.map(friendRow));
+  }
+  if (out.length) {
+    list.append(h('div', { class: 'sm-label', text: 'Enviadas' }));
+    list.append(...out.map((n) => requestRow(n, false)));
+  }
+  if (!inc.length && !friends.length && !out.length) {
+    list.append(h('div', { class: 'ss-empty' },
+      h('strong', { text: q ? 'Sin resultados' : 'Aún no hay amigos :(' }),
+      q ? null : h('button', { class: 'ss-green', type: 'button', text: 'Agregar amigo', onclick: socialOpenAddFriend })));
   }
 }
 
 function miniChatView(c) {
   const head = h('div', { class: 'sc-head' },
     h('button', { class: 'sc-back', type: 'button', title: 'Volver', 'aria-label': 'Volver a la lista', onclick: () => { social.chat = null; socialRender(); } }, icon('back', 18)),
-    chatAvatar(c, 40),
-    h('span', { class: 'sc-title' }, h('span', { class: 'sr-name', text: c.name }), h('span', { class: 'sc-status', text: subtitle(c) })),
+    socialAvatar(c.name, 40),
+    h('span', { class: 'sc-title' }, h('span', { class: 'sr-name', text: c.name }), h('span', { class: 'sc-status', text: statusText(c.name) })),
     h('button', { class: 'sh-btn boxed', type: 'button', title: 'Ampliar', 'aria-label': 'Ampliar', onclick: socialOpenBig }, icon('expand', 18)),
     h('button', { class: 'sh-btn boxed', type: 'button', title: 'Cerrar', 'aria-label': 'Cerrar panel', onclick: () => { social.open = false; socialRender(); } }, icon('x', 18)));
-  return [head, messageList(c), composer(c)];
+  return [head, messageList(c), composer(c, 'mini')];
+}
+
+function socialRenderBar() {
+  const badge = social.el.badge;
+  if (!badge) return;
+  const n = unreadTotal() + social.net.incoming.length;
+  badge.hidden = !n;
+  badge.textContent = n > 99 ? '99+' : String(n);
 }
 
 function socialRender() {
   const { root, panel, body } = social.el;
+  if (!root) return;
+  socialRenderBar();
   const showPanel = social.open && !social.bigModal;
   root.classList.toggle('open', showPanel);
   panel.hidden = !showPanel;
@@ -399,6 +467,7 @@ function socialOpenBig() {
   social.bigModal = m;
   socialRender();
   socialRenderBig();
+  socialSchedule(400);
 }
 
 function socialToggleBig() {
@@ -412,6 +481,7 @@ function socialFillBigList() {
   list.textContent = '';
   const items = sortedChats(social.bigQuery);
   if (!items.length) {
+    if (!social.bigQuery.trim() && noticeBox(list)) return;
     list.append(h('div', { class: 'ss-empty' },
       h('strong', { text: social.bigQuery.trim() ? 'Sin resultados' : 'Aún no hay charlas' }),
       social.bigQuery.trim() ? null : h('button', { class: 'ss-green', type: 'button', text: 'Nuevo chat', onclick: socialOpenNewChat })));
@@ -423,7 +493,7 @@ function socialFillBigList() {
 function socialRenderBig() {
   const m = social.bigModal;
   if (!m) return;
-  const input = h('input', { type: 'text', placeholder: 'Buscar chats', spellcheck: 'false', value: social.bigQuery });
+  const input = h('input', { type: 'text', placeholder: 'Buscar chats', spellcheck: 'false', value: social.bigQuery, 'data-keep': 'search-big' });
   input.addEventListener('input', () => { social.bigQuery = input.value; socialFillBigList(); });
   const left = h('div', { class: 'sx-left' },
     h('div', { class: 'sx-bar' },
@@ -436,8 +506,8 @@ function socialRenderBig() {
   const right = h('div', { class: 'sx-right' });
   if (c) {
     right.append(
-      h('div', { class: 'sx-chat-head' }, chatAvatar(c, 44), h('span', { class: 'sc-title' }, h('span', { class: 'sr-name', text: c.name }), h('span', { class: 'sc-status', text: subtitle(c) }))),
-      messageList(c), composer(c));
+      h('div', { class: 'sx-chat-head' }, socialAvatar(c.name, 44), h('span', { class: 'sc-title' }, h('span', { class: 'sr-name', text: c.name }), h('span', { class: 'sc-status', text: statusText(c.name) }))),
+      messageList(c), composer(c, 'big'));
   } else {
     right.append(h('div', { class: 'sx-blank' }, icon('chat', 42), h('strong', { text: 'Elegí una charla' }), h('span', { text: 'o empezá una nueva con el botón +' })));
   }
@@ -446,24 +516,106 @@ function socialRenderBig() {
   socialFillBigList();
 }
 
+function socialSwitchAccount(name) {
+  social.account = name;
+  social.data = name ? socialLoad(name) : { chats: [], lastId: 0 };
+  social.net = { friends: [], incoming: [], outgoing: [], error: '', ready: false };
+  social.chat = null;
+  social.sig = '';
+}
+
+function viewing(c) {
+  return c.id === social.chat && (social.bigModal || social.open) && !document.hidden;
+}
+
+async function socialPoll(force) {
+  if (!window.launcher || typeof window.launcher.socialSync !== 'function') return;
+  if (social.busy && !force) return;
+  const account = state?.account?.name || '';
+  if (account !== social.account) socialSwitchAccount(account);
+  if (!account) {
+    social.net.error = 'Iniciá sesión para usar amigos.';
+    socialRefresh();
+    return;
+  }
+  social.busy = true;
+  try {
+    const r = await window.launcher.socialSync(social.data.lastId || 0);
+    if ((state?.account?.name || '') !== account) return;
+    if (!r.ok) {
+      const changed = social.net.error !== r.error;
+      social.net.error = r.error;
+      if (changed) socialRefresh();
+      return;
+    }
+    const d = r.data || {};
+    const before = new Set(social.net.incoming.map((n) => n.toLowerCase()));
+    const wasReady = social.net.ready;
+    social.net = {
+      friends: Array.isArray(d.friends) ? d.friends : [],
+      incoming: Array.isArray(d.incoming) ? d.incoming : [],
+      outgoing: Array.isArray(d.outgoing) ? d.outgoing : [],
+      error: '',
+      ready: true
+    };
+    if (wasReady) {
+      for (const n of social.net.incoming) if (!before.has(n.toLowerCase())) toast(`${n} te mandó una solicitud de amistad.`);
+    }
+    let gotMessages = false;
+    for (const m of Array.isArray(d.messages) ? d.messages : []) {
+      if (!m || typeof m.from !== 'string' || typeof m.text !== 'string') continue;
+      const id = Number(m.id) || 0;
+      if (id <= social.data.lastId) continue;
+      social.data.lastId = id;
+      const c = chatFor(m.from);
+      c.messages.push({ from: m.from, mine: false, text: m.text, ts: Number(m.ts) || Date.now() });
+      if (c.messages.length > 500) c.messages.splice(0, c.messages.length - 500);
+      if (!viewing(c)) {
+        c.unread = (c.unread || 0) + 1;
+        toast(`${m.from}: ${m.text.length > 60 ? `${m.text.slice(0, 57)}…` : m.text}`);
+      }
+      gotMessages = true;
+    }
+    if (gotMessages) socialSave();
+    const sig = JSON.stringify([social.net, social.data.lastId]);
+    if (sig !== social.sig || gotMessages || !wasReady) {
+      social.sig = sig;
+      socialRefresh();
+    }
+  } finally {
+    social.busy = false;
+  }
+}
+
+function socialSchedule(ms) {
+  clearTimeout(social.timer);
+  social.timer = setTimeout(async () => {
+    await socialPoll(false);
+    socialSchedule(document.hidden ? 30000 : (social.open || social.bigModal ? 4000 : 12000));
+  }, ms);
+}
+
 function mountSocial() {
   const root = $('social');
   if (!root || social.el.root) return;
-  social.data = socialLoad();
 
   const body = h('div', { class: 'sp-body' });
   const panel = h('section', { class: 'sp', 'aria-label': 'Sociales' }, body);
   panel.hidden = true;
 
+  const badge = h('span', { class: 'sbar-badge', hidden: true });
   const bar = h('div', { class: 'sbar' },
     h('button', { class: 'sbar-main', type: 'button', 'aria-label': 'Abrir charla', onclick: () => {
       if (social.bigModal) return;
       social.open = !social.open;
       socialRender();
-    } }, icon('chat', 22), h('span', { text: 'Charla' })),
+      if (social.open) socialSchedule(200);
+    } }, icon('chat', 22), h('span', { text: 'Charla' }), badge),
     h('button', { class: 'sbar-add', type: 'button', title: 'Agregar amigo', 'aria-label': 'Agregar amigo', onclick: socialOpenAddFriend }, icon('userPlus', 20)));
 
   root.append(panel, bar);
-  Object.assign(social.el, { root, panel, body });
+  Object.assign(social.el, { root, panel, body, badge });
   socialRender();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) socialSchedule(300); });
+  socialSchedule(1500);
 }

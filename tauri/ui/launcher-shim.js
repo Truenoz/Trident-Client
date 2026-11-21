@@ -103,6 +103,10 @@
     openWorld: cmd('worlds_open', (id, name) => ({ id, name: String(name) })),
     readLog: cmd('logs_read', (id) => ({ id })),
 
+    socialSync: cmd('social_sync', (after) => ({ after: Number(after) || 0 })),
+    socialAction: cmd('social_action', (action, name) => ({ action: String(action), name: String(name) })),
+    socialSend: cmd('social_send', (to, text) => ({ to: String(to), text: String(text) })),
+
     getSkin: cmd('skin_get', (query, opts) => ({ query: String(query || ''), force: !!(opts && opts.force) })),
     getMySkin: cmd('skin_mine', (opts) => ({ force: !!(opts && opts.force) })),
     exportDebug: cmd('debug_export'),
