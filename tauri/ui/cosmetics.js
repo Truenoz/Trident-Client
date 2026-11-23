@@ -78,7 +78,7 @@ function cosSetWallet(w) {
   cos.wallet = w;
   window.tridentWallet = w;
   if (typeof viewer3d !== 'undefined' && viewer3d && typeof viewer3d.setCosmetics === 'function') {
-    viewer3d.setCosmetics(Array.isArray(w.equipped) ? w.equipped : []);
+    viewer3d.setCosmetics(Array.isArray(w.equipped) ? w.equipped : []).catch(() => {});
   }
   if (cos.mounted && state.view === 'cosmetics') cosRender();
 }
@@ -108,7 +108,7 @@ function cosMount() {
   cos.mounted = true;
   const canvas = $('cos3d');
   try {
-    cos.viewer = canvas && window.Skin3D && Skin3D.supported() ? Skin3D.create(canvas, $('cos-stage')) : null;
+    cos.viewer = canvas && window.Skin3D && Skin3D.supported() ? Skin3D.create(canvas, $('cos-stage'), { fit: 25, center: 19 }) : null;
   } catch {
     cos.viewer = null;
   }
@@ -142,7 +142,12 @@ async function cosLoadSkin() {
 
 function cosPreview() {
   if (!cos.viewer) return;
-  cos.viewer.setCosmetics(cos.selected ? [cos.selected] : []);
+  const id = cos.selected;
+  cos.viewer.setCosmetics(id ? [id] : []).catch((e) => {
+    if (cos.selected !== id) return;
+    const tag = $('cos-tag');
+    if (tag) tag.textContent = `No se pudo cargar la vista previa: ${(e && e.message) || e}`;
+  });
 }
 
 function cosRender() {

@@ -57,7 +57,10 @@ fn message(code: &str) -> String {
         "bad_password" => "Contraseña incorrecta.",
         "no_account" => "Ese nombre todavía no tiene contraseña. Creala primero.",
         "device_unknown" => NEED_LINK,
-        _ => "El servidor de amigos respondió con un error.",
+        "no_route" => "Trident Net está desactualizado: falta subir el server.js nuevo a Railway.",
+        "server_error" => "Trident Net tuvo un error interno. Probá de nuevo en un rato.",
+        "" => "El servidor de amigos respondió con un error.",
+        other => return format!("El servidor de amigos respondió con un error ({other})."),
     }
     .to_string()
 }
@@ -280,7 +283,8 @@ mod tests {
     #[test]
     fn mensajes_de_error_en_castellano() {
         assert_eq!(message("not_found"), "Ese jugador todavía no usa Trident Client.");
-        assert_eq!(message("algo_raro"), "El servidor de amigos respondió con un error.");
+        assert_eq!(message("algo_raro"), "El servidor de amigos respondió con un error (algo_raro).");
+        assert_eq!(message(""), "El servidor de amigos respondió con un error.");
     }
 
     #[test]

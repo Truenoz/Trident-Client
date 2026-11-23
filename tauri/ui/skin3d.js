@@ -219,7 +219,9 @@
   const DEFAULT_PITCH = 0.08;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
-  function create(canvas, host) {
+  function create(canvas, host, opts) {
+    const fitHalf = opts && opts.fit ? opts.fit : 18;
+    const centerY = opts && opts.center ? opts.center : 16;
     const gl = canvas.getContext('webgl', { antialias: true, alpha: true, premultipliedAlpha: true })
       || canvas.getContext('experimental-webgl');
     if (!gl) return null;
@@ -381,8 +383,8 @@
       const breathe = Math.sin(t * 0.0018);
 
       const rootRot = m4.mul(m4.rx(view.pitch), m4.ry(view.yaw + sway));
-      const root = m4.mul(rootRot, m4.move(0, -16, 0));
-      const dist = 18 / Math.tan(0.22);
+      const root = m4.mul(rootRot, m4.move(0, -centerY, 0));
+      const dist = fitHalf / Math.tan(0.22);
       const proj = m4.mul(m4.persp(0.44, canvas.width / canvas.height, 10, 300), m4.move(0, 0, -dist));
       const viewProj = m4.mul(proj, root);
 
@@ -495,10 +497,12 @@
         const token = ++cosToken;
         const list = Array.isArray(ids) ? ids.filter((x) => typeof x === 'string' && /^[a-z0-9_]+$/.test(x)) : [];
         const loaded = [];
+        let error = '';
         for (const id of list) {
-          try { loaded.push(await loadCosmetic(id)); } catch (e) { console.warn('[Skin3D] cosmético', id, e); }
+          try { loaded.push(await loadCosmetic(id)); } catch (e) { error = (e && e.message) || String(e); console.warn('[Skin3D] cosmético', id, e); }
         }
         if (token === cosToken) cosItems = loaded;
+        if (error && !loaded.length) throw new Error(error);
         return loaded.length;
       },
 
