@@ -1,13 +1,16 @@
 use serde_json::{json, Value};
+use std::path::Path;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
 
-use crate::{dl, game, nova, settings, AppState};
+use crate::{account, dl, game, nova, settings, AppState};
 
 const DEFAULT_URL: &str = "https://api.tridentclient.com";
 const MOJANG_JOIN: &str = "https://sessionserver.mojang.com/session/minecraft/join";
 const ACTIONS: [&str; 5] = ["request", "accept", "decline", "cancel", "remove"];
+const LINKS_FILE: &str = "trident-net.bin";
+pub const NEED_LINK: &str = "Vinculá tu cuenta no premium con Trident Net (pestaña Cosméticos) para usar amigos y cosméticos.";
 
 struct Cached {
     account: String,
@@ -48,6 +51,12 @@ fn message(code: &str) -> String {
         "unknown_item" => "Ese cosmético ya no está en la tienda.",
         "not_owned" => "Todavía no tenés ese cosmético.",
         "game_only" => "Las coins del día se reclaman abriendo Minecraft con Trident Client.",
+        "weak_password" => "La contraseña tiene que tener entre 6 y 72 caracteres.",
+        "name_taken" => "Ese nombre ya tiene contraseña en Trident Net. Si es tuyo, entrá con tu contraseña.",
+        "premium_name" => "Ese nombre es de una cuenta premium. Usá otro nombre o entrá con Microsoft.",
+        "bad_password" => "Contraseña incorrecta.",
+        "no_account" => "Ese nombre todavía no tiene contraseña. Creala primero.",
+        "device_unknown" => NEED_LINK,
         _ => "El servidor de amigos respondió con un error.",
     }
     .to_string()
@@ -82,10 +91,116 @@ async fn post(url: &str, token: Option<&str>, body: &Value) -> Result<(u16, Valu
     Ok((status, value))
 }
 
+fn links_read(user_dir: &Path) -> serde_json::Map<String, Value> {
+    std::fs::read(user_dir.join(LINKS_FILE))
+        .ok()
+        .and_then(|raw| account::unseal(&raw))
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default()
+}
+
+fn link_get(user_dir: &Path, name: &str) -> Option<String> {
+    links_read(user_dir).get(&name.to_lowercase())?.as_str().map(String::from)
+}
+
+fn link_set(user_dir: &Path, name: &str, device: Option<&str>) {
+    let mut map = links_read(user_dir);
+    match device {
+        Some(d) => {
+            map.insert(name.to_lowercase(), Value::String(d.to_string()));
+        }
+        None => {
+            map.remove(&name.to_lowercase());
+        }
+    }
+    let _ = std::fs::create_dir_all(user_dir);
+    if let Err(e) = std::fs::write(user_dir.join(LINKS_FILE), account::seal(Value::Object(map).to_string().as_bytes())) {
+        eprintln!("No se pudo guardar la cuenta de Trident Net: {e}");
+    }
+}
+
+pub fn game_link(user_dir: &Path, inst: &Path, s: &account::Session) {
+    let f = inst.join("config").join("tridentclient").join("net-offline.json");
+    match if s.offline { link_get(user_dir, &s.name) } else { None } {
+        Some(device) => {
+            if let Some(dir) = f.parent() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+            let _ = std::fs::write(&f, json!({ "name": s.name, "device": device }).to_string());
+        }
+        None => {
+            let _ = std::fs::remove_file(&f);
+        }
+    }
+}
+
+fn offline_key(name: &str) -> String {
+    format!("offline:{}", name.to_lowercase())
+}
+
+async fn offline_token(app: &AppHandle, base: &str, s: &account::Session) -> Result<String, String> {
+    let key = offline_key(&s.name);
+    if let Some(t) = cached(&key) {
+        return Ok(t);
+    }
+    let user_dir = app.state::<AppState>().user_dir.clone();
+    let device = link_get(&user_dir, &s.name).ok_or(NEED_LINK)?;
+    let (status, r) = post(&format!("{base}/v1/auth/offline/device"), None, &json!({ "name": s.name, "device": device })).await?;
+    if status == 401 {
+        link_set(&user_dir, &s.name, None);
+        return Err(NEED_LINK.into());
+    }
+    let token = r["token"].as_str().filter(|_| status == 200).ok_or_else(|| message(r["error"].as_str().unwrap_or("")))?.to_string();
+    let secs = r["expiresIn"].as_u64().unwrap_or(3600).saturating_sub(120).max(60);
+    store(key, token.clone(), secs);
+    Ok(token)
+}
+
+pub fn offline_status(app: &AppHandle) -> Value {
+    match game::get_session(app) {
+        Some(s) if s.offline => {
+            let user_dir = app.state::<AppState>().user_dir.clone();
+            json!({ "offline": true, "name": s.name, "linked": link_get(&user_dir, &s.name).is_some() })
+        }
+        Some(s) => json!({ "offline": false, "name": s.name, "linked": true }),
+        None => json!({ "offline": false, "name": "", "linked": false }),
+    }
+}
+
+pub async fn offline_link(app: &AppHandle, password: &str, register: bool) -> Result<Value, String> {
+    let s = game::get_session(app).ok_or("Iniciá sesión primero.")?;
+    if !s.offline {
+        return Err("Tu cuenta es premium: no necesita contraseña.".into());
+    }
+    let base = base_url(app)?;
+    let path = if register { "/v1/auth/offline/register" } else { "/v1/auth/offline/login" };
+    let (status, r) = post(&format!("{base}{path}"), None, &json!({ "name": s.name, "password": password })).await?;
+    if status != 200 {
+        return Err(message(r["error"].as_str().unwrap_or("")));
+    }
+    let device = r["device"].as_str().filter(|d| d.len() == 64).ok_or("El servidor de amigos no respondió bien.")?;
+    let user_dir = app.state::<AppState>().user_dir.clone();
+    link_set(&user_dir, &s.name, Some(device));
+    if let Some(t) = r["token"].as_str() {
+        let secs = r["expiresIn"].as_u64().unwrap_or(3600).saturating_sub(120).max(60);
+        store(offline_key(&s.name), t.to_string(), secs);
+    }
+    Ok(json!({ "ok": true, "name": r["name"] }))
+}
+
+pub fn offline_unlink(app: &AppHandle) {
+    if let Some(s) = game::get_session(app) {
+        let user_dir = app.state::<AppState>().user_dir.clone();
+        link_set(&user_dir, &s.name, None);
+    }
+    forget();
+}
+
 async fn token(app: &AppHandle, base: &str) -> Result<String, String> {
     let s = game::get_session(app).ok_or("Iniciá sesión para usar amigos.")?;
     if s.offline {
-        return Err("Los amigos necesitan una cuenta de Microsoft: las cuentas sin conexión no se pueden verificar.".into());
+        return offline_token(app, base, &s).await;
     }
     let account = s.uuid_plain();
     if let Some(t) = cached(&account) {
@@ -166,6 +281,17 @@ mod tests {
     fn mensajes_de_error_en_castellano() {
         assert_eq!(message("not_found"), "Ese jugador todavía no usa Trident Client.");
         assert_eq!(message("algo_raro"), "El servidor de amigos respondió con un error.");
+    }
+
+    #[test]
+    fn los_vinculos_no_premium_se_guardan_por_nombre() {
+        let dir = std::env::temp_dir().join(format!("trident-links-{}", std::process::id()));
+        assert_eq!(link_get(&dir, "Dave"), None);
+        link_set(&dir, "Dave", Some(&"a".repeat(64)));
+        assert_eq!(link_get(&dir, "dave").as_deref(), Some("a".repeat(64).as_str()));
+        link_set(&dir, "DAVE", None);
+        assert_eq!(link_get(&dir, "Dave"), None);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

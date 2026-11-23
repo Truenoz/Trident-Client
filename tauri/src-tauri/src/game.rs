@@ -358,7 +358,6 @@ pub async fn launch(app: &AppHandle, profile_id: &str, opts: &Value) -> Result<(
 }
 
 async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result<(), String> {
-    let started = std::time::Instant::now();
     let st = app.state::<AppState>();
     let (user_dir, game_dir) = (st.user_dir.clone(), st.game_dir.clone());
     if get_session(app).is_none() {
@@ -366,9 +365,6 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     }
 
     let profile = profiles::get(&user_dir, &game_dir, profile_id)?;
-    if profile["loader"].as_str() == Some("bedrock") {
-        return Err("Este perfil es de Minecraft Bedrock: se abre con su propio botón.".to_string());
-    }
     let mc = profile["mc"].as_str().ok_or("El perfil no tiene versión de Minecraft.")?.to_string();
     if !net::is_allowed(&mc) {
         return Err(format!("La versión {mc} no está disponible en Trident Client"));
@@ -395,6 +391,7 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
         }
     }
     let session = get_session(app).ok_or("La sesión se cerró mientras se preparaba el juego.")?;
+    crate::social::game_link(&user_dir, &inst, &session);
 
     let (launch_id, with_nova) = prepare_profile(app, &profile, &inst, &game_dir).await?;
 
@@ -414,6 +411,13 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     let mut user_jvm = split_args(settings.get("jvmArgs").and_then(|v| v.as_str()).unwrap_or(""));
     user_jvm.extend(split_args(profile["jvmArgs"].as_str().unwrap_or("")));
 
+    if java_setting.trim().is_empty() && major >= 21 && !user_jvm.iter().any(|a| a.contains("SharedArchiveFile")) {
+        let cds_dir = game_dir.join("cache").join("cds");
+        if std::fs::create_dir_all(&cds_dir).is_ok() {
+            user_jvm.insert(0, format!("-XX:SharedArchiveFile={}", cds_dir.join(format!("{launch_id}.jsa")).display()));
+            user_jvm.insert(0, "-XX:+AutoCreateSharedArchive".to_string());
+        }
+    }
     let net_url = nova::net_url(&settings);
     let nova_net = (with_nova && net_url.starts_with("http") && !net_url.contains(char::is_whitespace)).then_some(net_url.as_str());
     let server = opts["server"].as_str().map(|s| s.trim()).filter(|s| !s.is_empty());
@@ -424,7 +428,6 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     );
 
     default_options(&inst);
-    log(app, format!("[Trident] Launcher listo en {:.1} s; abriendo Minecraft…", started.elapsed().as_secs_f64()));
     let mut cmd = tokio::process::Command::new(&java_path);
     cmd.args(&plan)
         .current_dir(&inst)

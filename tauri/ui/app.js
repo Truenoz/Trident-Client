@@ -338,7 +338,6 @@ function launchMode() {
   if (state.running && (!state.activeId || !p || state.activeId === p.id)) return 'stop';
   if (state.running) return 'running-other';
   if (state.busy) return 'busy';
-  if (isBedrock(p)) return 'bedrock';
   if (!state.account) return 'login';
   if (!p) return 'create';
   return 'play';
@@ -358,8 +357,7 @@ function renderLaunch() {
     busy: pct !== null && pct > 0 ? `PREPARANDO… ${Math.round(pct)}%` : 'PREPARANDO…',
     login: 'INICIAR SESIÓN PARA JUGAR',
     create: 'CREAR UN PERFIL',
-    play: 'JUGAR',
-    bedrock: 'JUGAR BEDROCK'
+    play: 'JUGAR'
   }[mode];
   els.profilePick.disabled = state.busy;
 }
@@ -374,7 +372,7 @@ function renderHome() {
   if (p) {
     els.heroKicker.textContent = p.name;
     els.heroTitle.textContent = `Minecraft ${p.mc}`;
-    const parts = [isBedrock(p) ? 'Bedrock Edition' : p.loader === 'fabric' && p.nova !== false ? `${p.loaderLabel} + Trident Client` : `Java · ${p.loaderLabel}`];
+    const parts = [p.loader === 'fabric' && p.nova !== false ? `${p.loaderLabel} + Trident Client` : p.loaderLabel];
     parts.push(state.activeId === p.id && state.running ? 'Jugando ahora' : timeAgo(p.lastPlayed));
     els.heroSub.textContent = parts.join(' · ');
   } else {
@@ -393,8 +391,8 @@ function renderHome() {
 function openProfilePicker() {
   const current = lastProfile();
   const items = recentProfiles().slice(0, 8).map((p) => ({
-    label: `${p.name} · ${isBedrock(p) ? 'Bedrock' : `${p.loaderLabel} ${p.mc}`}${current && p.id === current.id ? ' ✓' : ''}`,
-    img: editionImg(p, 18),
+    label: `${p.name} · ${p.loaderLabel} ${p.mc}`,
+    icon: current && p.id === current.id ? 'check' : 'cube',
     onclick: () => selectProfile(p.id)
   }));
   if (items.length) items.push('sep');
@@ -442,11 +440,6 @@ function drawHomeMods() {
   const box = els.homeMods;
   box.textContent = '';
   els.modsTitle.textContent = p ? `Mods · ${p.name}` : 'Mods instalados';
-  if (isBedrock(p)) {
-    els.modsCount.textContent = '0';
-    box.append(h('div', { class: 'mods-empty muted small', text: 'Minecraft Bedrock no usa mods de Java. Sus mundos están en el perfil.' }));
-    return;
-  }
   if (!p) {
     els.modsCount.textContent = '0';
     box.append(h('div', { class: 'mods-empty muted small', text: 'Cuando crees un perfil, sus mods aparecen acá.' }));
@@ -505,7 +498,6 @@ async function playProfile(id, opts) {
   if (state.busy || state.running) return;
   const p = profileById(id);
   if (!p) return;
-  if (isBedrock(p)) { bedrockPlayProfile(p); return; }
   showError('');
   if (!state.account) {
     toast('Iniciá sesión con tu cuenta de Microsoft para jugar.');
@@ -534,7 +526,7 @@ els.railPlay.addEventListener('click', () => {
   if (mode === 'login') { doLogin(); return; }
   if (mode === 'create') { openProfileWizard(); return; }
   const p = lastProfile();
-  if ((mode === 'play' || mode === 'bedrock') && p) playProfile(p.id);
+  if (mode === 'play' && p) playProfile(p.id);
 });
 
 window.launcher.onStatus(async ({ state: s, text, percent, profileId }) => {
@@ -658,15 +650,15 @@ function profileCard(p) {
   const play = running
     ? h('button', { class: 'btn btn-stop btn-block', type: 'button', onclick: (e) => { e.stopPropagation(); window.launcher.stop(); } }, h('span', { class: 'stop-ico' }), 'Detener')
     : h('button', {
-      class: 'btn btn-play btn-block', type: 'button', disabled: isBedrock(p) ? false : !canPlay(),
+      class: 'btn btn-play btn-block', type: 'button', disabled: !canPlay(),
       onclick: (e) => { e.stopPropagation(); playProfile(p.id); }
-    }, icon('play'), state.account || isBedrock(p) ? 'Jugar' : 'Inicia sesión');
+    }, icon('play'), state.account ? 'Jugar' : 'Inicia sesión');
 
   card.append(
     b,
     h('div', { class: 'card-body' },
       h('strong', { class: 'card-title', text: p.name }),
-      h('span', { class: 'muted sub' }, editionImg(p, 16), isBedrock(p) ? 'Bedrock Edition' : `Java · ${p.loaderLabel} ${p.mc}`),
+      h('span', { class: 'muted sub' }, icon('fabric', 15), `${p.loaderLabel} ${p.mc}`),
       h('div', { class: 'card-actions' }, play, gear),
       h('span', { class: 'muted small', text: active ? (running ? 'Jugando ahora' : 'Preparando…') : timeAgo(p.lastPlayed) }))
   );
@@ -676,19 +668,18 @@ function profileCard(p) {
 }
 
 function openProfileMenu(anchor, p) {
-  const br = isBedrock(p);
   const header = h('div', { class: 'pop-head' },
-    editionImg(p, 34),
-    h('div', {}, h('strong', { text: p.name }), h('span', { class: 'muted small', text: br ? 'Minecraft Bedrock' : `Java · ${p.loaderLabel} ${p.mc} · ${p.origin === 'pack' ? 'Paquete' : 'Custom Profile'}` })));
+    h('img', { class: 'pixel', src: 'logo.png', alt: '', width: 34, height: 34 }),
+    h('div', {}, h('strong', { text: p.name }), h('span', { class: 'muted small', text: `${p.loaderLabel} ${p.mc} · ${p.origin === 'pack' ? 'Paquete' : 'Custom Profile'}` })));
   popMenu(anchor, [
     { label: 'Editar', icon: 'edit', onclick: () => openEditProfile(p) },
-    br ? null : { label: 'Ajustes', icon: 'settings', onclick: () => goTo('detail', { id: p.id, tab: 'settings' }) },
+    { label: 'Ajustes', icon: 'settings', onclick: () => goTo('detail', { id: p.id, tab: 'settings' }) },
     'sep',
-    br ? null : { label: 'Duplicar', icon: 'layers', onclick: () => duplicateProfile(p) },
-    br ? null : { label: 'Copiar del perfil…', icon: 'import', onclick: () => openCopyFrom(p) },
-    br ? null : { label: 'Exportar…', icon: 'export', onclick: () => exportProfile(p) },
-    br ? null : { label: 'Compartir perfil…', icon: 'share', onclick: () => openShareModal(p) },
-    br ? null : { label: 'Mostrar en carpeta', icon: 'folder', onclick: () => call(window.launcher.openProfileFolder(p.id)).catch((e) => toast(e.message, 'error')) },
+    { label: 'Duplicar', icon: 'layers', onclick: () => duplicateProfile(p) },
+    { label: 'Copiar del perfil…', icon: 'import', onclick: () => openCopyFrom(p) },
+    { label: 'Exportar…', icon: 'export', onclick: () => exportProfile(p) },
+    { label: 'Compartir perfil…', icon: 'share', onclick: () => openShareModal(p) },
+    { label: 'Mostrar en carpeta', icon: 'folder', onclick: () => call(window.launcher.openProfileFolder(p.id)).catch((e) => toast(e.message, 'error')) },
     { label: p.pinned ? 'Desfijar' : 'Fijar arriba', icon: 'pin', onclick: () => pinProfile(p) },
     'sep',
     { label: 'Eliminar perfil…', icon: 'trash', danger: true, onclick: () => deleteProfile(p) }
@@ -893,42 +884,25 @@ function openProfileWizard({ profile = null } = {}) {
     search.addEventListener('input', draw);
     draw();
 
-    const types = h('div', { class: `type-cards${editing ? '' : ' three'}` },
-      typeCard('nova', 'Con Trident Client', 'Java · Fabric + HUD, amigos, zoom y más.', 'java'),
-      typeCard('vanilla', 'Vanilla', 'Java · Minecraft sin mods.', 'java'),
-      editing ? null : typeCard('bedrock', 'Bedrock', 'Bedrock Edition: juego cruzado con Xbox y celular.', 'bedrock'));
-    const versionField = h('div', { class: 'field' }, h('span', { class: 'field-label', text: 'Versión de Minecraft' }), search, grid);
-    const bedrockNote = h('div', { class: 'field bedrock-note' },
-      h('img', { src: 'editions/bedrock.png', alt: '', width: 44, height: 44, draggable: false }),
-      h('div', {},
-        h('strong', { text: 'Minecraft Bedrock' }),
-        h('span', { class: 'muted small', text: 'Se descarga desde el perfil la primera vez y después se juega con su propio botón.' })));
-    const nextLabel = () => (sel.type === 'nova' ? 'Siguiente' : (editing ? 'Guardar' : 'Crear perfil'));
-    const syncType = () => {
-      versionField.classList.toggle('hidden', sel.type === 'bedrock');
-      bedrockNote.classList.toggle('hidden', sel.type !== 'bedrock');
-      name.placeholder = sel.type === 'bedrock' ? 'Minecraft Bedrock' : 'Nombre del perfil (opcional)';
-    };
-    function typeCard(id, title, text, edition) {
-      const el = h('button', { class: `type-card${sel.type === id ? ' selected' : ''}`, type: 'button' },
-        h('img', { class: 'type-ico', src: `editions/${edition}.png`, alt: '', width: 40, height: 40, draggable: false }),
-        h('span', { class: 'type-text' }, h('strong', { text: title }), h('span', { class: 'muted small', text })));
+    const types = h('div', { class: 'type-cards' },
+      typeCard('nova', 'Con Trident Client', 'Fabric + HUD, amigos, zoom y más.'),
+      typeCard('vanilla', 'Vanilla', 'Minecraft sin mods.'));
+    function typeCard(id, title, text) {
+      const el = h('button', { class: `type-card${sel.type === id ? ' selected' : ''}`, type: 'button' }, h('strong', { text: title }), h('span', { class: 'muted small', text }));
       el.addEventListener('click', () => {
         sel.type = id;
         types.querySelectorAll('.type-card').forEach((c) => c.classList.toggle('selected', c === el));
-        next.textContent = nextLabel();
-        syncType();
+        next.textContent = sel.type === 'nova' ? 'Siguiente' : (editing ? 'Guardar' : 'Crear perfil');
       });
       return el;
     }
 
-    const next = h('button', { class: 'btn btn-accent', type: 'button', text: nextLabel(), onclick: () => (sel.type === 'nova' ? goStep2() : submit()) });
-    syncType();
+    const next = h('button', { class: 'btn btn-accent', type: 'button', text: sel.type === 'nova' ? 'Siguiente' : (editing ? 'Guardar' : 'Crear perfil'), onclick: () => (sel.type === 'nova' ? goStep2() : submit()) });
     setModal({
       title: editing ? 'Cambiar versión' : 'Nuevo perfil',
       icon: 'cube',
       wide: true,
-      body: [editing ? null : h('label', { class: 'field' }, h('span', { class: 'field-label', text: 'Nombre' }), name), h('div', { class: 'field' }, h('span', { class: 'field-label', text: 'Tipo' }), types), versionField, bedrockNote],
+      body: [editing ? null : h('label', { class: 'field' }, h('span', { class: 'field-label', text: 'Nombre' }), name), h('div', { class: 'field' }, h('span', { class: 'field-label', text: 'Versión de Minecraft' }), search, grid), h('div', { class: 'field' }, h('span', { class: 'field-label', text: 'Tipo' }), types)],
       footer: [h('button', { class: 'btn btn-dark', type: 'button', text: 'Cancelar', onclick: () => m.close() }), next]
     });
   }
@@ -986,17 +960,6 @@ function openProfileWizard({ profile = null } = {}) {
   }
 
   async function submit() {
-    if (sel.type === 'bedrock') {
-      try {
-        const p = await call(window.launcher.createProfile({ name: sel.name, loader: 'bedrock', folder: sel.folder }));
-        m.close();
-        await loadProfiles();
-        await saveSetting({ lastProfile: p.id });
-        toast(`Perfil creado: ${p.name}`);
-        goTo('detail', { id: p.id });
-      } catch (e) { toast(e.message, 'error'); }
-      return;
-    }
     if (!sel.mc) { toast('Elegí una versión.'); return; }
     const loader = sel.type === 'nova' ? 'fabric' : 'vanilla';
     try {

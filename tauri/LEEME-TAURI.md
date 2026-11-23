@@ -140,3 +140,8 @@ npm run build        # instalador en src-tauri/target/release/bundle/nsis/ (no n
 - Vista previa 3D con tu skin y el cosmético elegido. En el inicio, tu personaje muestra lo que tenés equipado.
 - Todo pasa por Trident Net (`/v1/shop/buy`, `/v1/shop/equip`). Lo que compres o equipes en el launcher aparece en Minecraft con Trident Client, y al revés.
 - Los modelos están en `ui/cosmetics/<id>/` (`modelo.json`, `ficha.json`, `textura.png`), copiados del mod. Si agregás un cosmético nuevo al mod, copiá también su carpeta acá.
+
+## Cuentas no premium en Trident Net
+
+- Con una cuenta no premium, la pestaña **Cosméticos** pide crear una contraseña de Trident Net (o entrar con la que ya tenés). Después funcionan coins, cosméticos y amigos igual que con premium.
+- El launcher guarda solo una clave del dispositivo, cifrada con Windows (`trident-net.bin` en la carpeta de datos), y al abrir el juego la deja en `config/tridentclient/net-offline.json` de la instancia para que el mod se conecte.

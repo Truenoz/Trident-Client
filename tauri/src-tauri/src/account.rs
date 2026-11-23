@@ -313,6 +313,25 @@ pub fn load_offline(user_dir: &Path) -> Option<String> {
     v["name"].as_str().map(|n| n.to_string())
 }
 
+pub fn seal(data: &[u8]) -> Vec<u8> {
+    match protect(data) {
+        Some(b) => [b"N1:".as_slice(), &b].concat(),
+        None => [b"P1:".as_slice(), data].concat(),
+    }
+}
+
+pub fn unseal(raw: &[u8]) -> Option<Vec<u8>> {
+    if raw.len() < 3 {
+        return None;
+    }
+    let (tag, body) = raw.split_at(3);
+    match tag {
+        b"N1:" => unprotect(body),
+        b"P1:" => Some(body.to_vec()),
+        _ => None,
+    }
+}
+
 pub fn clear_offline(user_dir: &Path) {
     let _ = std::fs::remove_file(user_dir.join("offline.json"));
 }

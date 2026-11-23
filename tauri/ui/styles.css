@@ -1118,21 +1118,6 @@ body.game-running *, body.game-running *::before, body.game-running *::after { a
 .sc-bubble.failed { opacity: .8; box-shadow: inset 0 0 0 1px var(--red); }
 .sc-composer input:disabled, .sc-send:disabled { opacity: .5; cursor: not-allowed; }
 
-.edition-ico { flex-shrink: 0; object-fit: contain; image-rendering: auto; }
-.card-body .sub { display: inline-flex; align-items: center; gap: 6px; }
-.type-cards.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.type-card { flex-direction: row; align-items: center; gap: 12px; }
-.type-ico { flex-shrink: 0; width: 40px; height: 40px; object-fit: contain; }
-.type-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.field.bedrock-note { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; gap: 14px; padding: 16px; border-radius: 12px; border: 1px solid #26262e; background: var(--panel); }
-.bedrock-note > div { display: flex; flex-direction: column; gap: 3px; }
-.banner-bedrock { position: relative; display: grid; place-items: center; overflow: hidden; background: radial-gradient(90% 120% at 50% 0%, #3a3a44 0%, #16161b 70%); }
-.banner-bedrock-logo { width: auto; height: 62%; max-height: 120px; object-fit: contain; filter: drop-shadow(0 12px 24px rgba(0, 0, 0, .55)); }
-.tag-bedrock { display: inline-flex; align-items: center; gap: 6px; border-color: #4a4a55; background: #1d1d23; color: #d8d8e0; }
-.bedrock-toolbar { align-items: center; }
-.bedrock-toolbar h3 { margin: 0; font-size: 18px; }
-.world-row .btn-small { flex-shrink: 0; }
-.pop-item .edition-ico { width: 18px; height: 18px; }
 .cos-page { display: grid; grid-template-columns: minmax(280px, 0.9fr) 1.4fr; gap: 18px; height: 100%; min-height: 0; }
 .cos-stage { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 420px; padding: 18px; overflow: hidden; cursor: grab; }
 .cos-stage.grabbing { cursor: grabbing; }
@@ -1158,3 +1143,10 @@ body.game-running *, body.game-running *::before, body.game-running *::after { a
 .cos-note { margin-top: 12px; }
 @media (max-width: 900px) { .cos-page { grid-template-columns: 1fr; } }
 .cos-daily { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(182, 160, 255, .12); border: 1px solid rgba(182, 160, 255, .3); color: #e4dcff; font-weight: 700; }
+.cos-link { grid-column: 1 / -1; max-width: 420px; padding: 20px; border-radius: 14px; background: rgba(255, 255, 255, .04); border: 1px solid rgba(255, 255, 255, .08); display: flex; flex-direction: column; gap: 10px; }
+.cos-link h3 { margin: 0; font-size: 18px; }
+.cos-link-form { display: flex; flex-direction: column; gap: 8px; }
+.cos-link-form .input { width: 100%; }
+.cos-link-error { margin: 0; min-height: 1em; color: #ff7b85; font-size: 13px; }
+.cos-link-swap { align-self: flex-start; padding: 0; border: 0; background: none; color: rgba(var(--accent-rgb), 1); font-weight: 700; cursor: pointer; }
+.cos-link-swap:hover { text-decoration: underline; }

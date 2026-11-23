@@ -7,8 +7,56 @@ const cos = {
   busy: false,
   viewer: null,
   skinFor: null,
-  mounted: false
+  mounted: false,
+  offline: null,
+  linkMode: 'register',
+  linkBusy: false,
+  linkError: ''
 };
+
+async function cosOfflineCheck() {
+  if (!window.launcher || typeof window.launcher.netOfflineStatus !== 'function') return;
+  try {
+    cos.offline = await call(window.launcher.netOfflineStatus());
+  } catch {
+    cos.offline = null;
+  }
+  if (state.view === 'cosmetics') cosRender();
+}
+
+function cosLinkForm() {
+  const reg = cos.linkMode === 'register';
+  const pass = h('input', { class: 'input', type: 'password', autocomplete: reg ? 'new-password' : 'current-password', maxlength: '72', placeholder: 'Contraseña' });
+  const pass2 = reg ? h('input', { class: 'input', type: 'password', autocomplete: 'new-password', maxlength: '72', placeholder: 'Repetí la contraseña' }) : null;
+  const err = h('p', { class: 'cos-link-error', text: cos.linkError });
+  const submit = h('button', { class: 'btn btn-accent', type: 'submit', disabled: cos.linkBusy, text: cos.linkBusy ? 'Un momento…' : reg ? 'Crear cuenta' : 'Entrar' });
+  const form = h('form', { class: 'cos-link-form', onsubmit: async (e) => {
+    e.preventDefault();
+    if (cos.linkBusy) return;
+    const p = pass.value;
+    if (p.length < 6) { cos.linkError = 'La contraseña tiene que tener al menos 6 caracteres.'; cosRender(); return; }
+    if (reg && p !== pass2.value) { cos.linkError = 'Las contraseñas no coinciden.'; cosRender(); return; }
+    cos.linkBusy = true;
+    cos.linkError = '';
+    cosRender();
+    try {
+      await call(window.launcher.netOfflineLink(p, reg));
+      toast(reg ? 'Cuenta creada. Ya podés usar coins, cosméticos y amigos.' : 'Listo, entraste a Trident Net.', 'success');
+      cos.offline = Object.assign({}, cos.offline, { linked: true });
+      if (typeof socialPoll === 'function') socialPoll(true);
+    } catch (ex) {
+      cos.linkError = (ex && ex.message) || 'No se pudo conectar con Trident Net.';
+    } finally {
+      cos.linkBusy = false;
+      cosRender();
+    }
+  } }, pass, pass2, err, submit);
+  const swap = h('button', { class: 'cos-link-swap', type: 'button', text: reg ? 'Ya tengo contraseña' : 'Crear una contraseña nueva', onclick: () => { cos.linkMode = reg ? 'login' : 'register'; cos.linkError = ''; cosRender(); } });
+  return h('div', { class: 'cos-link' },
+    h('h3', { text: reg ? 'Creá tu cuenta de Trident Net' : 'Entrá a Trident Net' }),
+    h('p', { class: 'muted small', text: `Tu cuenta no premium «${cos.offline.name}» necesita una contraseña para guardar tus coins, cosméticos y amigos. La vas a usar si cambiás de PC.` }),
+    form, swap);
+}
 
 function cosWallet() {
   return cos.wallet || window.tridentWallet || null;
@@ -110,8 +158,12 @@ function cosRender() {
   const items = cosItems();
   const grid = $('cos-grid');
   grid.replaceChildren();
-  if (!known) {
-    grid.append(h('div', { class: 'cos-empty muted', text: state?.account ? 'Conectando con Trident Net…' : 'Iniciá sesión con tu cuenta de Minecraft para ver tus cosméticos.' }));
+  if (!known && cos.offline && cos.offline.offline && !cos.offline.linked) {
+    grid.append(cosLinkForm());
+  } else if (!known) {
+    const netErr = typeof social !== 'undefined' && social.net && social.net.error ? social.net.error : '';
+    const msg = !state?.account ? 'Iniciá sesión con tu cuenta de Minecraft para ver tus cosméticos.' : netErr ? `No se pudo conectar con Trident Net: ${netErr}` : 'Conectando con Trident Net…';
+    grid.append(h('div', { class: 'cos-empty muted', text: msg }));
   } else if (!items.length) {
     grid.append(h('div', { class: 'cos-empty muted', text: cos.tab === 'mine' ? 'Todavía no tenés cosméticos. Conseguilos en la Tienda.' : 'No hay cosméticos en la tienda.' }));
   }
@@ -151,7 +203,8 @@ function cosRender() {
 
 function renderCosmetics() {
   cosMount();
+  cosOfflineCheck();
   cosLoadSkin().then(cosPreview);
   cosRender();
-  if (typeof socialPoll === 'function') socialPoll(true);
+  if (typeof socialPoll === 'function') Promise.resolve(socialPoll(true)).finally(() => { if (state.view === 'cosmetics') cosRender(); });
 }

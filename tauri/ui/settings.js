@@ -8,17 +8,6 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
-  ['1.4.1', [
-    'Nueva pestaña Cosméticos: tienda con Trident Coins, tus cosméticos y vista 3D de tu personaje con el cosmético puesto.',
-    'Lo que compres o equipes en el launcher se aplica también en Minecraft con Trident Client.'
-  ]],
-  ['1.4.0', [
-    'Perfiles de Minecraft Bedrock: elegí «Bedrock» al crear un perfil y descargalo desde el perfil.',
-    'Mundos de Bedrock: verlos, hacer copias de seguridad (.mcworld) e importar mundos.',
-    'Cada perfil muestra el logo de su edición: bloque de pasto para Java y bedrock para Bedrock.',
-    'Se quitó una opción de Java que hacía más lento el arranque de Minecraft en algunas PCs.',
-    'El Registro muestra cuánto tardó el launcher en preparar el juego.'
-  ]],
   ['1.3.7', [
     'Los mods de rendimiento (Sodium, Iris Shaders, Lithium, FerriteCore, ImmediatelyFast, Entity Culling, BadOptimizations y Mod Menu) se instalan siempre en cada perfil con Trident Client.',
     'Minecraft arranca con opciones de Java afinadas y prioridad alta: menos tirones y más FPS.',
