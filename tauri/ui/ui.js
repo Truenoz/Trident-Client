@@ -56,6 +56,7 @@ const ICONS = {
   download: '<path d="M12 4v11"/><path d="m7.5 11 4.5 4.5 4.5-4.5"/><path d="M5 19h14"/>',
   fabric: '<path d="M6 3h9l3 3v15H6z"/><path d="M15 3v3h3"/><path d="M9 11h6M9 15h6"/>',
   warn: '<path d="M12 4 3 20h18z"/><path d="M12 10v4.5M12 17.5h.01"/>',
+  sparkle: '<path d="M12 3.5 13.8 9 19.5 10.8 13.8 12.6 12 18.5 10.2 12.6 4.5 10.8 10.2 9z"/><path d="M18.5 3.5v3M17 5h3M5.5 17v3M4 18.5h3"/>',
   star: '<path d="m12 4 2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8h.01"/>',
   file: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',

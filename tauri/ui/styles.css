@@ -1133,3 +1133,28 @@ body.game-running *, body.game-running *::before, body.game-running *::after { a
 .bedrock-toolbar h3 { margin: 0; font-size: 18px; }
 .world-row .btn-small { flex-shrink: 0; }
 .pop-item .edition-ico { width: 18px; height: 18px; }
+.cos-page { display: grid; grid-template-columns: minmax(280px, 0.9fr) 1.4fr; gap: 18px; height: 100%; min-height: 0; }
+.cos-stage { position: relative; display: flex; flex-direction: column; justify-content: flex-end; min-height: 420px; padding: 18px; overflow: hidden; cursor: grab; }
+.cos-stage.grabbing { cursor: grabbing; }
+.cos3d { position: absolute; inset: 0 0 96px 0; width: 100%; height: calc(100% - 96px); }
+.cos-info { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 6px; }
+.cos-info h3 { margin: 0; font-size: 22px; }
+.cos-info .btn { margin-top: 6px; }
+.cos-side { display: flex; flex-direction: column; min-height: 0; }
+.cos-wallet { display: flex; align-items: center; gap: 10px; }
+.cos-coins { padding: 6px 12px; border-radius: 999px; background: rgba(182, 160, 255, .14); border: 1px solid rgba(182, 160, 255, .35); color: #e4dcff; font-weight: 800; font-size: 13px; }
+.cos-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.cos-tabs button { padding: 7px 14px; border-radius: 10px; border: 0; background: rgba(255, 255, 255, .06); color: inherit; font-weight: 700; cursor: pointer; }
+.cos-tabs button.active { background: linear-gradient(135deg, var(--accent-a), var(--accent-b)); color: #fff; }
+.cos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; overflow: auto; padding-right: 4px; }
+.cos-card { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .07); background: rgba(255, 255, 255, .04); color: inherit; text-align: left; cursor: pointer; transition: background .15s, border-color .15s; }
+.cos-card:hover { background: rgba(255, 255, 255, .08); }
+.cos-card.active { border-color: rgba(var(--accent-rgb), .7); background: rgba(var(--accent-rgb), .12); }
+.cos-card.on { box-shadow: inset 0 0 0 1px rgba(82, 211, 100, .45); }
+.cos-card-name { font-weight: 800; }
+.cos-badge { padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; background: rgba(182, 160, 255, .16); color: #cbbeff; }
+.cos-badge.owned { background: rgba(82, 211, 100, .14); color: #8cf29b; }
+.cos-empty { grid-column: 1 / -1; padding: 30px 10px; text-align: center; }
+.cos-note { margin-top: 12px; }
+@media (max-width: 900px) { .cos-page { grid-template-columns: 1fr; } }
+.cos-daily { margin: 12px 0 0; padding: 10px 12px; border-radius: 10px; background: rgba(182, 160, 255, .12); border: 1px solid rgba(182, 160, 255, .3); color: #e4dcff; font-weight: 700; }

@@ -6,6 +6,7 @@ const els = {
     profiles: $('view-profiles'),
     detail: $('view-detail'),
     browse: $('view-browse'),
+    cosmetics: $('view-cosmetics'),
     console: $('view-console')
   },
 
@@ -96,6 +97,7 @@ const TABS = [
   { view: 'home', icon: 'play', title: 'Jugar' },
   { view: 'profiles', icon: 'grid', title: 'Perfiles' },
   { view: 'browse', icon: 'cube', title: 'Mods' },
+  { view: 'cosmetics', icon: 'sparkle', title: 'Cosméticos' },
   { view: 'console', icon: 'console', title: 'Registro' }
 ];
 
@@ -182,6 +184,7 @@ function goTo(view, opts) {
   if (view === 'profiles') renderProfiles();
   if (view === 'detail') renderDetail(opts.id, opts.tab);
   if (view === 'browse') renderBrowse();
+  if (view === 'cosmetics' && typeof renderCosmetics === 'function') renderCosmetics();
   if (view === 'console') flushLog();
   if (view === 'home') { homeMods.stale = true; renderHome(); }
 }

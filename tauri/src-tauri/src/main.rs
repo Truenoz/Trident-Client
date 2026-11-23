@@ -707,6 +707,11 @@ async fn social_action(app: tauri::AppHandle, action: String, name: String) -> R
 }
 
 #[tauri::command]
+async fn shop_call(app: tauri::AppHandle, op: String, id: Option<String>, on: Option<bool>) -> Res {
+    social::shop(&app, &op, id.as_deref().unwrap_or(""), on.unwrap_or(false)).await
+}
+
+#[tauri::command]
 async fn social_send(app: tauri::AppHandle, to: String, text: String) -> Res {
     social::send(&app, &to, &text).await
 }
@@ -890,6 +895,7 @@ fn main() {
             bedrock_open,
             social_action,
             social_send,
+            shop_call,
             game_launch,
             game_stop,
             win_minimize,

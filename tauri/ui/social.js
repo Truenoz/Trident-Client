@@ -549,6 +549,10 @@ async function socialPoll(force) {
       return;
     }
     const d = r.data || {};
+    if (d.wallet && typeof d.wallet === 'object') {
+      window.tridentWallet = d.wallet;
+      window.dispatchEvent(new CustomEvent('trident-wallet', { detail: d.wallet }));
+    }
     const before = new Set(social.net.incoming.map((n) => n.toLowerCase()));
     const wasReady = social.net.ready;
     social.net = {

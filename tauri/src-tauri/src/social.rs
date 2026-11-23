@@ -44,6 +44,10 @@ fn message(code: &str) -> String {
         "rate_limited" => "Vas muy rápido. Probá de nuevo en un rato.",
         "empty" => "El mensaje está vacío.",
         "unauthorized" => "No se pudo verificar tu cuenta.",
+        "not_enough_coins" => "No te alcanzan las Trident Coins.",
+        "unknown_item" => "Ese cosmético ya no está en la tienda.",
+        "not_owned" => "Todavía no tenés ese cosmético.",
+        "game_only" => "Las coins del día se reclaman abriendo Minecraft con Trident Client.",
         _ => "El servidor de amigos respondió con un error.",
     }
     .to_string()
@@ -140,6 +144,14 @@ pub async fn action(app: &AppHandle, action: &str, name: &str) -> Result<Value, 
         return Err("Acción no válida.".into());
     }
     call(app, &format!("/v1/friends/{action}"), json!({ "name": name.trim() })).await
+}
+
+pub async fn shop(app: &AppHandle, op: &str, id: &str, on: bool) -> Result<Value, String> {
+    match op {
+        "buy" => call(app, "/v1/shop/buy", json!({ "id": id.trim() })).await,
+        "equip" => call(app, "/v1/shop/equip", json!({ "id": id.trim(), "on": on })).await,
+        _ => Err("Acción no válida.".into()),
+    }
 }
 
 pub async fn send(app: &AppHandle, to: &str, text: &str) -> Result<Value, String> {

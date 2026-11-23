@@ -133,3 +133,10 @@ npm install
 npm run dev          # ventana de desarrollo
 npm run build        # instalador en src-tauri/target/release/bundle/nsis/ (no necesita ninguna clave)
 ```
+
+## Cosméticos (vinculados con el mod)
+
+- Pestaña **Cosméticos**: tienda, "Mis cosméticos" y tu saldo de Trident Coins. Las coins del día solo se reclaman en el juego; el launcher avisa cuando hay para reclamar.
+- Vista previa 3D con tu skin y el cosmético elegido. En el inicio, tu personaje muestra lo que tenés equipado.
+- Todo pasa por Trident Net (`/v1/shop/buy`, `/v1/shop/equip`). Lo que compres o equipes en el launcher aparece en Minecraft con Trident Client, y al revés.
+- Los modelos están en `ui/cosmetics/<id>/` (`modelo.json`, `ficha.json`, `textura.png`), copiados del mod. Si agregás un cosmético nuevo al mod, copiá también su carpeta acá.

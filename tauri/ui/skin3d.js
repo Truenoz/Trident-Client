@@ -156,6 +156,65 @@
     return sh;
   }
 
+
+  const COS_FACES = ['north', 'south', 'west', 'east', 'up', 'down'];
+  const COS_ATTACH = [0, 1.655 / 0.0925, -0.19 / 0.0925];
+
+  function cosCorners(f, a, b) {
+    const [x0, y0, z0] = a, [x1, y1, z1] = b;
+    return [
+      [[x1, y1, z0], [x0, y1, z0], [x0, y0, z0], [x1, y0, z0]],
+      [[x0, y1, z1], [x1, y1, z1], [x1, y0, z1], [x0, y0, z1]],
+      [[x0, y1, z0], [x0, y1, z1], [x0, y0, z1], [x0, y0, z0]],
+      [[x1, y1, z1], [x1, y1, z0], [x1, y0, z0], [x1, y0, z1]],
+      [[x0, y1, z0], [x1, y1, z0], [x1, y1, z1], [x0, y1, z1]],
+      [[x0, y0, z1], [x1, y0, z1], [x1, y0, z0], [x0, y0, z0]]
+    ][f];
+  }
+
+  function cosRotate(r, p) {
+    if (!r || !r.angle) return p;
+    const o = r.origin || [8, 8, 8];
+    const a = r.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    const x = p[0] - o[0], y = p[1] - o[1], z = p[2] - o[2];
+    if (r.axis === 'x') return [x + o[0], y * c - z * s + o[1], y * s + z * c + o[2]];
+    if (r.axis === 'z') return [x * c - y * s + o[0], x * s + y * c + o[1], z + o[2]];
+    return [x * c + z * s + o[0], y + o[1], -x * s + z * c + o[2]];
+  }
+
+  function cosQuads(model, ficha, W, H) {
+    if (Array.isArray(model.quads)) {
+      return model.quads.filter((q) => Array.isArray(q) && q.length >= 17).map((q) => ({
+        c: [[q[0], q[1], q[2]], [q[3], q[4], q[5]], [q[6], q[7], q[8]], [q[9], q[10], q[11]]],
+        uv: [q[12] / W, q[13] / H, q[14] / W, q[15] / H],
+        g: q.length > 17 ? q[17] : -1
+      }));
+    }
+    const anchor = Array.isArray(ficha.anchor) ? ficha.anchor : [8, 0, 8];
+    const out = [];
+    for (const e of model.elements || []) {
+      for (let f = 0; f < 6; f++) {
+        const face = e.faces && e.faces[COS_FACES[f]];
+        if (!face || !face.uv) continue;
+        const turn = ((Math.floor((face.rotation || 0) / 90) % 4) + 4) % 4;
+        const k = cosCorners(f, e.from, e.to);
+        const c = [0, 1, 2, 3].map((i) => {
+          const p = cosRotate(e.rotation, k[(i + turn) % 4]);
+          return [p[0] - anchor[0] + COS_ATTACH[0], p[1] - anchor[1] + COS_ATTACH[1], p[2] - anchor[2] + COS_ATTACH[2]];
+        });
+        out.push({ c, uv: face.uv.map((v) => v / 16), g: -1 });
+      }
+    }
+    return out;
+  }
+
+  function cosMatrix(an, t) {
+    const sn = Math.sin(an.w * t), cs = Math.cos(an.w * t), d = Math.PI / 180, k = an.coef || [0, 0, 0, 0, 0, 0];
+    const rot = m4.mul(m4.mul(m4.rz((k[4] * sn + k[5] * cs) * d), m4.ry((k[2] * sn + k[3] * cs) * d)), m4.rx((k[0] * sn + k[1] * cs) * d));
+    const p = an.pivot || [0, 0, 0];
+    return m4.mul(m4.mul(m4.move(p[0], p[1], p[2]), rot), m4.move(-p[0], -p[1], -p[2]));
+  }
+
   const DEFAULT_YAW = 0;
   const DEFAULT_PITCH = 0.08;
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -209,6 +268,57 @@
       });
     }
     setParts(false);
+
+
+    const cosCache = new Map();
+    let cosItems = [];
+    let cosToken = 0;
+
+    async function loadCosmetic(id) {
+      if (cosCache.has(id)) return cosCache.get(id);
+      const job = (async () => {
+        const base = `cosmetics/${encodeURIComponent(id)}/`;
+        const model = await (await fetch(base + 'modelo.json')).json();
+        let ficha = {};
+        try { ficha = await (await fetch(base + 'ficha.json')).json(); } catch {  }
+        const img = await loadImage(base + 'textura.png');
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        const anims = Array.isArray(model.anims) ? model.anims : [];
+        const groups = new Map();
+        for (const q of cosQuads(model, ficha, img.width, img.height)) {
+          const g = q.g >= 0 && q.g < anims.length ? q.g : -1;
+          if (!groups.has(g)) groups.set(g, []);
+          const [tl, tr, br, bl] = q.c;
+          const a = [bl[0] - tl[0], bl[1] - tl[1], bl[2] - tl[2]], b = [tr[0] - tl[0], tr[1] - tl[1], tr[2] - tl[2]];
+          let n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+          const len = Math.hypot(n[0], n[1], n[2]) || 1;
+          n = n.map((v) => v / len);
+          const [u0, v0, u1, v1] = q.uv;
+          const arr = groups.get(g);
+          for (const [p, pu, pv] of [[tl, u0, v0], [bl, u0, v1], [br, u1, v1], [tl, u0, v0], [br, u1, v1], [tr, u1, v0]]) {
+            arr.push(p[0], p[1], p[2], pu, pv, n[0], n[1], n[2]);
+          }
+        }
+        const parts = [];
+        for (const [g, arr] of groups) {
+          const buffer = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(arr), gl.STATIC_DRAW);
+          parts.push({ g, buffer, count: arr.length / 8 });
+        }
+        return { id, head: ficha.slot === 'head', tex, anims, parts };
+      })();
+      cosCache.set(id, job);
+      job.catch(() => cosCache.delete(id));
+      return job;
+    }
 
     const view = { yaw: DEFAULT_YAW, pitch: DEFAULT_PITCH, userTouched: false, headYaw: 0, headPitch: 0, tHeadYaw: 0, tHeadPitch: 0 };
     let drag = null;
@@ -301,6 +411,39 @@
           gl.drawArrays(gl.TRIANGLES, 0, p.count);
         }
       }
+
+      if (cosItems.length) {
+        gl.enable(gl.BLEND);
+        gl.uniform1f(loc.opaque, 0);
+        const ts = t / 1000;
+        const headRot = m4.mul(m4.ry(view.headYaw), m4.rx(view.headPitch));
+        for (const item of cosItems) {
+          const base = item.head ? m4.mul(m4.mul(m4.move(0, 24, 0), headRot), m4.move(0, -24, 0)) : m4.id();
+          const mats = item.anims.map((an) => cosMatrix(an, ts));
+          gl.bindTexture(gl.TEXTURE_2D, item.tex);
+          for (const p of item.parts) {
+            let model = m4.id();
+            let g = p.g, guard = 0;
+            while (g >= 0 && g < mats.length && guard++ < 16) {
+              model = m4.mul(mats[g], model);
+              const parent = item.anims[g].parent;
+              g = typeof parent === 'number' ? parent : -1;
+            }
+            model = m4.mul(base, model);
+            gl.uniformMatrix4fv(loc.mvp, false, m4.mul(viewProj, model));
+            gl.uniformMatrix4fv(loc.rot, false, m4.mul(rootRot, model));
+            gl.bindBuffer(gl.ARRAY_BUFFER, p.buffer);
+            gl.enableVertexAttribArray(loc.pos);
+            gl.vertexAttribPointer(loc.pos, 3, gl.FLOAT, false, 32, 0);
+            gl.enableVertexAttribArray(loc.uv);
+            gl.vertexAttribPointer(loc.uv, 2, gl.FLOAT, false, 32, 12);
+            gl.enableVertexAttribArray(loc.nrm);
+            gl.vertexAttribPointer(loc.nrm, 3, gl.FLOAT, false, 32, 20);
+            gl.drawArrays(gl.TRIANGLES, 0, p.count);
+          }
+        }
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+      }
     }
 
     let raf = 0;
@@ -346,6 +489,17 @@
         ctx.drawImage(faceSource, 8 * s, 8 * s, 8 * s, 8 * s, 0, 0, size, size);
         ctx.drawImage(faceSource, 40 * s, 8 * s, 8 * s, 8 * s, 0, 0, size, size);
         return c.toDataURL('image/png');
+      },
+
+      async setCosmetics(ids) {
+        const token = ++cosToken;
+        const list = Array.isArray(ids) ? ids.filter((x) => typeof x === 'string' && /^[a-z0-9_]+$/.test(x)) : [];
+        const loaded = [];
+        for (const id of list) {
+          try { loaded.push(await loadCosmetic(id)); } catch (e) { console.warn('[Skin3D] cosmético', id, e); }
+        }
+        if (token === cosToken) cosItems = loaded;
+        return loaded.length;
       },
 
       setView(yaw, pitch) { view.userTouched = true; view.yaw = yaw; view.pitch = pitch; },

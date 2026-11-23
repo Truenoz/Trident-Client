@@ -112,6 +112,7 @@
     bedrockBackup: cmd('bedrock_backup', (path) => ({ path: String(path) })),
     bedrockImport: cmd('bedrock_import'),
     bedrockOpen: cmd('bedrock_open', (path) => ({ path: String(path) })),
+    shopCall: cmd('shop_call', (op, id, on) => ({ op: String(op), id: id ? String(id) : null, on: !!on })),
 
     getSkin: cmd('skin_get', (query, opts) => ({ query: String(query || ''), force: !!(opts && opts.force) })),
     getMySkin: cmd('skin_mine', (opts) => ({ force: !!(opts && opts.force) })),

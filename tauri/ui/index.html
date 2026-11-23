@@ -154,6 +154,34 @@
         </div>
       </section>
 
+      <section id="view-cosmetics" class="view">
+        <div class="cos-page">
+          <div class="cos-stage glass" id="cos-stage">
+            <canvas id="cos3d" class="cos3d" aria-label="Tu personaje con el cosmético"></canvas>
+            <div class="cos-info">
+              <h3 id="cos-name">Cosméticos</h3>
+              <span id="cos-tag" class="muted small"></span>
+              <button id="cos-action" class="btn btn-accent hidden" type="button"></button>
+            </div>
+          </div>
+          <div class="cos-side">
+            <div class="page-head">
+              <h2>Cosméticos</h2>
+              <div class="cos-wallet">
+                <span id="cos-coins" class="cos-coins">— coins</span>
+              </div>
+            </div>
+            <div class="cos-tabs" id="cos-tabs">
+              <button type="button" data-tab="shop" class="active">Tienda</button>
+              <button type="button" data-tab="mine">Mis cosméticos</button>
+            </div>
+            <div id="cos-grid" class="cos-grid"></div>
+            <p id="cos-daily" class="small cos-daily hidden"></p>
+            <p class="muted small cos-note">Lo que compres o equipes acá se aplica también en Minecraft con Trident Client, y al revés.</p>
+          </div>
+        </div>
+      </section>
+
       <section id="view-profiles" class="view">
         <div class="page-head">
           <h2>Perfiles</h2>
@@ -200,6 +228,7 @@
   <script src="social.js"></script>
   <script src="bg-rotator.js"></script>
   <script src="app.js"></script>
+  <script src="cosmetics.js"></script>
   <script src="offline-login.js"></script>
   <script src="maintenance.js"></script>
 </body>

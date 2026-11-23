@@ -8,6 +8,10 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.4.1', [
+    'Nueva pestaña Cosméticos: tienda con Trident Coins, tus cosméticos y vista 3D de tu personaje con el cosmético puesto.',
+    'Lo que compres o equipes en el launcher se aplica también en Minecraft con Trident Client.'
+  ]],
   ['1.4.0', [
     'Perfiles de Minecraft Bedrock: elegí «Bedrock» al crear un perfil y descargalo desde el perfil.',
     'Mundos de Bedrock: verlos, hacer copias de seguridad (.mcworld) e importar mundos.',

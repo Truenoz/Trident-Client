@@ -1,0 +1,16 @@
+{
+ "id": "trident_back",
+ "name": "Tridente",
+ "type": "accessory",
+ "attachment": "body",
+ "anchor": [
+  8,
+  11,
+  8
+ ],
+ "glow": [
+  5,
+  7
+ ],
+ "autor": "Trident Client"
+}

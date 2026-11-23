@@ -1,0 +1,10 @@
+{
+ "id": "xmas_hat",
+ "slot": "head",
+ "anchor": [
+  0.0,
+  28.0,
+  0.0
+ ],
+ "fuente": "2340854f-christmas_hat.bbmodel"
+}
