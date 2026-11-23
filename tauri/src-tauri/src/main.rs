@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod account;
+mod bedrock;
 mod content;
 mod discord;
 mod dl;
@@ -158,6 +159,105 @@ async fn version_art(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -
             .and_then(|t| serde_json::from_str::<Value>(&t).ok())
             .ok_or(e),
     }
+}
+
+fn bedrock_roots(app: &tauri::AppHandle) -> Vec<bedrock::Root> {
+    match (app.path().data_dir(), app.path().local_data_dir()) {
+        (Ok(roaming), Ok(local)) => bedrock::roots(&roaming, &local),
+        _ => Vec::new(),
+    }
+}
+
+#[tauri::command]
+async fn bedrock_status(app: tauri::AppHandle) -> Res {
+    let roots = bedrock_roots(&app);
+    blocking(move || {
+        let installed = bedrock::protocol_registered() || !roots.is_empty();
+        Ok(json!({ "installed": installed, "canImport": bedrock::import_target(&roots).is_some(), "worlds": bedrock::worlds(&roots) }))
+    })
+    .await
+}
+
+#[tauri::command]
+fn bedrock_play(app: tauri::AppHandle, state: State<'_, AppState>, id: Option<String>) -> Res {
+    if !bedrock::protocol_registered() {
+        return Err("Minecraft Bedrock no está instalado. Descargalo con el botón «Descargar Bedrock».".to_string());
+    }
+    app.opener()
+        .open_url("minecraft://", None::<&str>)
+        .map_err(|e| format!("No se pudo abrir Minecraft Bedrock: {e}"))?;
+    if let Some(id) = id.filter(|s| !s.is_empty()) {
+        profiles::touch_played(&state.user_dir, &id, 0.0);
+    }
+    Ok(Value::Null)
+}
+
+#[tauri::command]
+fn bedrock_install(app: tauri::AppHandle) -> Res {
+    app.opener()
+        .open_url(bedrock::STORE_URL, None::<&str>)
+        .map_err(|e| format!("No se pudo abrir la Microsoft Store: {e}"))?;
+    Ok(Value::Null)
+}
+
+#[tauri::command]
+async fn bedrock_backup(app: tauri::AppHandle, path: String) -> Res {
+    let world = bedrock::world_dir(&bedrock_roots(&app), &path)?;
+    let stamp = {
+        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let (y, m, d) = civil_from_days((secs / 86_400) as i64);
+        format!("{y:04}-{m:02}-{d:02}")
+    };
+    let file_name = format!("{} {stamp}.mcworld", bedrock::safe_file_name(&bedrock::display_name(&world)));
+    let downloads = app.path().download_dir().ok();
+    let a = app.clone();
+    let file = tauri::async_runtime::spawn_blocking(move || {
+        let mut dlg = a.dialog().file().set_title("Guardar copia del mundo").set_file_name(file_name).add_filter("Mundo de Minecraft Bedrock", &["mcworld"]);
+        if let Some(d) = downloads {
+            dlg = dlg.set_directory(d);
+        }
+        dlg.blocking_save_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let Some(dest) = file.and_then(|f| f.into_path().ok()) else { return Ok(Value::Null) };
+    let out = dest.clone();
+    blocking(move || bedrock::backup(&world, &out)).await?;
+    let _ = app.opener().reveal_item_in_dir(&dest);
+    Ok(json!(dest.to_string_lossy()))
+}
+
+#[tauri::command]
+async fn bedrock_import(app: tauri::AppHandle) -> Res {
+    let roots = bedrock_roots(&app);
+    let Some(target) = bedrock::import_target(&roots).map(|r| r.dir.clone()) else {
+        return Err("Abrí Minecraft Bedrock una vez para que cree su carpeta de mundos y volvé a intentar.".to_string());
+    };
+    let a = app.clone();
+    let files = tauri::async_runtime::spawn_blocking(move || {
+        a.dialog().file().set_title("Importar mundos de Bedrock").add_filter("Mundo de Minecraft Bedrock", &["mcworld"]).blocking_pick_files()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    let paths = picked(files.unwrap_or_default());
+    if paths.is_empty() {
+        return Ok(Value::Null);
+    }
+    blocking(move || {
+        let mut names = Vec::new();
+        for p in paths {
+            names.push(bedrock::import(&p, &target)?);
+        }
+        Ok(json!(names))
+    })
+    .await
+}
+
+#[tauri::command]
+fn bedrock_open(app: tauri::AppHandle, path: String) -> Res {
+    let world = bedrock::world_dir(&bedrock_roots(&app), &path)?;
+    open_folder(&app, &world)?;
+    Ok(Value::Null)
 }
 
 #[tauri::command]
@@ -782,6 +882,12 @@ fn main() {
             auth_offline,
             auth_logout,
             social_sync,
+            bedrock_status,
+            bedrock_play,
+            bedrock_install,
+            bedrock_backup,
+            bedrock_import,
+            bedrock_open,
             social_action,
             social_send,
             game_launch,

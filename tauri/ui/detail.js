@@ -42,6 +42,7 @@ function renderDetail(id, tab) {
   const root = els.views.detail;
   root.textContent = '';
   if (!p) { goTo('profiles'); return; }
+  if (isBedrock(p)) { renderBedrockDetail(root, p); return; }
 
   detail.left = h('aside', { class: 'detail-left' });
   detail.right = h('section', { class: 'detail-right' });
@@ -58,6 +59,7 @@ function renderDetail(id, tab) {
 
 function detailRefresh(reloadContent) {
   const p = detailProfile();
+  if (isBedrock(p)) { bedrockRefreshDetail(p); return; }
   if (!p || !detail.left) return;
   const title = $('detail-title');
   if (title) title.textContent = p.name;

@@ -106,6 +106,12 @@
     socialSync: cmd('social_sync', (after) => ({ after: Number(after) || 0 })),
     socialAction: cmd('social_action', (action, name) => ({ action: String(action), name: String(name) })),
     socialSend: cmd('social_send', (to, text) => ({ to: String(to), text: String(text) })),
+    bedrockStatus: cmd('bedrock_status'),
+    bedrockPlay: cmd('bedrock_play', (id) => ({ id: id ? String(id) : null })),
+    bedrockInstall: cmd('bedrock_install'),
+    bedrockBackup: cmd('bedrock_backup', (path) => ({ path: String(path) })),
+    bedrockImport: cmd('bedrock_import'),
+    bedrockOpen: cmd('bedrock_open', (path) => ({ path: String(path) })),
 
     getSkin: cmd('skin_get', (query, opts) => ({ query: String(query || ''), force: !!(opts && opts.force) })),
     getMySkin: cmd('skin_mine', (opts) => ({ force: !!(opts && opts.force) })),

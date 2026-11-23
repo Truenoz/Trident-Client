@@ -101,7 +101,11 @@ fn instance_dir(p: &Value, game_dir: &Path) -> PathBuf {
 fn view(p: &Value, game_dir: &Path) -> Value {
     let mut v = p.clone();
     if let Some(o) = v.as_object_mut() {
-        let label = if p["loader"].as_str() == Some("fabric") { "Fabric" } else { "Vanilla" };
+        let label = match p["loader"].as_str() {
+            Some("fabric") => "Fabric",
+            Some("bedrock") => "Bedrock",
+            _ => "Vanilla",
+        };
         o.insert("loaderLabel".to_string(), json!(label));
         o.insert(
             "dir".to_string(),
@@ -178,17 +182,20 @@ pub fn get(user_dir: &Path, game_dir: &Path, id: &str) -> Result<Value, String> 
 
 pub fn create(user_dir: &Path, game_dir: &Path, input: &Value) -> Result<Value, String> {
     let mut s = Store::load(user_dir);
-    let mc = input["mc"].as_str().unwrap_or("").trim().to_string();
+    let bedrock = input["loader"].as_str() == Some("bedrock");
+    let mc = if bedrock { "Bedrock".to_string() } else { input["mc"].as_str().unwrap_or("").trim().to_string() };
     if mc.is_empty() {
         return Err("Elegí una versión de Minecraft.".to_string());
     }
-    let fabric = input["loader"].as_str() == Some("fabric");
-    let loader = if fabric { "fabric" } else { "vanilla" };
+    let fabric = !bedrock && input["loader"].as_str() == Some("fabric");
+    let loader = if bedrock { "bedrock" } else if fabric { "fabric" } else { "vanilla" };
     let typed = input["name"].as_str().unwrap_or("").trim().to_string();
-    let name = if typed.is_empty() {
-        format!("{} {}", if fabric { "Fabric" } else { "Minecraft" }, mc)
-    } else {
+    let name = if !typed.is_empty() {
         typed
+    } else if bedrock {
+        "Minecraft Bedrock".to_string()
+    } else {
+        format!("{} {}", if fabric { "Fabric" } else { "Minecraft" }, mc)
     };
     let folder = input["folder"]
         .as_str()
@@ -228,11 +235,15 @@ pub fn update(user_dir: &Path, game_dir: &Path, id: &str, patch: &Value) -> Resu
     let folders = s.folders();
     {
         let p = &mut s.arr_mut("profiles")[i];
+        let is_bedrock = p["loader"].as_str() == Some("bedrock");
         for k in PROFILE_KEYS {
             let v = match patch.get(*k) {
                 Some(v) => v.clone(),
                 None => continue,
             };
+            if is_bedrock && matches!(*k, "mc" | "loader" | "nova") {
+                continue;
+            }
             let new_value = match *k {
                 "name" => {
                     let t = limit_chars(v.as_str().unwrap_or(""), 60);
@@ -266,6 +277,9 @@ pub fn update(user_dir: &Path, game_dir: &Path, id: &str, patch: &Value) -> Resu
         }
         if p["loader"].as_str() != Some("fabric") {
             p["nova"] = json!(false);
+        }
+        if is_bedrock {
+            p["loader"] = json!("bedrock");
         }
     }
     s.save(user_dir)?;
@@ -376,4 +390,29 @@ pub fn ids(user_dir: &Path) -> Vec<String> {
         .iter()
         .filter_map(|p| p["id"].as_str().map(|s| s.to_string()))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn perfil_bedrock() {
+        let base = std::env::temp_dir().join(format!("trident-prof-bedrock-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let (u, g) = (base.join("u"), base.join("g"));
+        fs::create_dir_all(&u).unwrap();
+        let p = create(&u, &g, &json!({ "loader": "bedrock", "mc": "1.21.4", "nova": true })).unwrap();
+        assert_eq!(p["loader"], "bedrock");
+        assert_eq!(p["mc"], "Bedrock");
+        assert_eq!(p["nova"], false);
+        assert_eq!(p["name"], "Minecraft Bedrock");
+        assert_eq!(p["loaderLabel"], "Bedrock");
+        let id = p["id"].as_str().unwrap().to_string();
+        let up = update(&u, &g, &id, &json!({ "loader": "fabric", "mc": "1.21.4", "name": "Mi Bedrock" })).unwrap();
+        assert_eq!(up["loader"], "bedrock");
+        assert_eq!(up["mc"], "Bedrock");
+        assert_eq!(up["name"], "Mi Bedrock");
+        let _ = fs::remove_dir_all(&base);
+    }
 }
