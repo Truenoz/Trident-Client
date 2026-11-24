@@ -731,6 +731,9 @@ pub async fn check_updates(env: &Env, id: &str) -> Result<Vec<(String, Value)>, 
         let res = mr_post("/version_files/update", &body).await?;
         for (hash, v) in res.as_object().cloned().unwrap_or_default() {
             if let Some(key) = group.get(&hash) {
+                if idx.files[key]["pinned"].as_bool() == Some(true) {
+                    continue;
+                }
                 let installed = idx.files[key]["versionNumber"].as_str().unwrap_or("");
                 let to_pre = v["version_type"].as_str().is_some_and(|t| t != "release");
                 if to_pre && !is_prerelease(installed) {
@@ -852,6 +855,28 @@ fn remove_perf_files(dir: &Path, only: Option<&str>) {
     let _ = write_index(dir, &idx);
 }
 
+async fn perf_pins(p: &Value, mc: &str) -> HashMap<String, Value> {
+    let mut pins: HashMap<String, Value> = HashMap::new();
+    let Ok(Some(iris)) = best_version(p, "iris", "mod", true).await else { return pins };
+    let deps = iris["dependencies"].as_array().cloned().unwrap_or_default();
+    for (_, slug, _) in PERF_MODS {
+        if *slug == "iris" {
+            continue;
+        }
+        let Ok(project) = mr_get(&format!("/project/{}", enc(slug)), &[]).await else { continue };
+        let Some(pid) = project["id"].as_str() else { continue };
+        let dep = deps.iter().find(|d| d["project_id"].as_str() == Some(pid) && d["dependency_type"].as_str() == Some("required"));
+        let Some(vid) = dep.and_then(|d| d["version_id"].as_str()) else { continue };
+        if let Ok(v) = mr_get(&format!("/version/{}", enc(vid)), &[]).await {
+            let fits = v["game_versions"].as_array().is_some_and(|g| g.iter().any(|x| x.as_str() == Some(mc)));
+            if fits && v["id"].as_str() == Some(vid) {
+                pins.insert(slug.to_string(), v);
+            }
+        }
+    }
+    pins
+}
+
 pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
     let p = env.profile(id)?;
     if !is_fabric(&p) {
@@ -869,6 +894,7 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
     for k in old {
         remove_perf_files(&dir, Some(&k));
     }
+    let pins = perf_pins(&p, &mc).await;
     for (key, slug, name) in PERF_MODS {
         let idx = read_index(&dir);
         let tag = format!("perf:{key}");
@@ -877,6 +903,25 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
         let wrong = have.iter().any(|(k, f)| {
             targets_other_mc(f["versionNumber"].as_str().unwrap_or(""), &mc) || targets_other_mc(&base_name(k), &mc)
         });
+        if let Some(pin) = pins.get(*slug) {
+            if have.iter().any(|(_, f)| f["versionId"] == pin["id"]) {
+                continue;
+            }
+            if !have.is_empty() {
+                (env.log)(format!("[Rendimiento] {name}: se instala la versión {} porque es la que pide Iris.", pin["version_number"].as_str().unwrap_or("")));
+                remove_perf_files(&dir, Some(key));
+            }
+            let step = async {
+                let (title, icon) = project_info(slug).await?;
+                install_version(&p, pin, "mod", json!({ "title": title, "icon": icon, "managed": tag, "pinned": true })).await?;
+                (env.log)(format!("[Rendimiento] {name} {} instalado.", pin["version_number"].as_str().unwrap_or("")));
+                Ok::<(), String>(())
+            };
+            if let Err(e) = step.await {
+                (env.log)(format!("[Rendimiento] {name}: {e}"));
+            }
+            continue;
+        }
         let pre_key = format!("perf-pre:{slug}:{mc}");
         let pre = have.iter().any(|(_, f)| is_prerelease(f["versionNumber"].as_str().unwrap_or("")));
         if wrong {
