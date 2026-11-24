@@ -463,6 +463,11 @@ pub fn targets_other_mc(label: &str, mc: &str) -> bool {
     other
 }
 
+pub fn is_prerelease(label: &str) -> bool {
+    let l = label.to_lowercase();
+    ["alpha", "beta", "-rc", "+rc", ".rc", "pre", "snapshot"].iter().any(|t| l.contains(t))
+}
+
 fn version_fits_mc(v: &Value, mc: &str) -> bool {
     let files = v["files"].as_array().cloned().unwrap_or_default();
     let file = files.iter().find(|f| f["primary"].as_bool().unwrap_or(false)).or_else(|| files.first());
@@ -726,6 +731,11 @@ pub async fn check_updates(env: &Env, id: &str) -> Result<Vec<(String, Value)>, 
         let res = mr_post("/version_files/update", &body).await?;
         for (hash, v) in res.as_object().cloned().unwrap_or_default() {
             if let Some(key) = group.get(&hash) {
+                let installed = idx.files[key]["versionNumber"].as_str().unwrap_or("");
+                let to_pre = v["version_type"].as_str().is_some_and(|t| t != "release");
+                if to_pre && !is_prerelease(installed) {
+                    continue;
+                }
                 if idx.files[key]["versionId"] != v["id"] {
                     out.push((key.clone(), v));
                 }
@@ -867,9 +877,20 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
         let wrong = have.iter().any(|(k, f)| {
             targets_other_mc(f["versionNumber"].as_str().unwrap_or(""), &mc) || targets_other_mc(&base_name(k), &mc)
         });
+        let pre_key = format!("perf-pre:{slug}:{mc}");
+        let pre = have.iter().any(|(_, f)| is_prerelease(f["versionNumber"].as_str().unwrap_or("")));
         if wrong {
             (env.log)(format!("[Rendimiento] {name}: la versión instalada no es para Minecraft {mc}, se quita."));
             remove_perf_files(&dir, Some(key));
+        } else if pre && !crate::dl::checked_recently(&pre_key, 6) {
+            crate::dl::mark_checked(&pre_key);
+            match best_version(&p, slug, "mod", true).await {
+                Ok(Some(v)) if v["version_type"].as_str() == Some("release") && have.iter().all(|(_, f)| f["versionId"] != v["id"]) => {
+                    (env.log)(format!("[Rendimiento] {name}: se cambia la versión de prueba por la estable {}.", v["version_number"].as_str().unwrap_or("")));
+                    remove_perf_files(&dir, Some(key));
+                }
+                _ => continue,
+            }
         } else if !have.is_empty() {
             continue;
         }
@@ -1073,6 +1094,10 @@ mod tests {
         assert!(targets_other_mc("sodium-fabric-0.6.13+mc1.21.8.jar", "26.3"));
         assert!(!targets_other_mc("lithium-fabric-0.26.4-mc26.3.jar", "26.3"));
         assert!(targets_other_mc("lithium-fabric-0.26.4-mc26.3.jar", "1.21.8"));
+        assert!(is_prerelease("mc26.3-0.9.4-beta.1-fabric"));
+        assert!(is_prerelease("1.0.0-alpha.2"));
+        assert!(!is_prerelease("mc26.3-0.9.3-fabric"));
+        assert!(!is_prerelease("1.11.7+26.3-fabric"));
     }
 
     #[test]
