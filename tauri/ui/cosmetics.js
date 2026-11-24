@@ -108,7 +108,7 @@ function cosMount() {
   cos.mounted = true;
   const canvas = $('cos3d');
   try {
-    cos.viewer = canvas && window.Skin3D && Skin3D.supported() ? Skin3D.create(canvas, $('cos-stage'), { fit: 25, center: 19 }) : null;
+    cos.viewer = canvas && window.Skin3D && Skin3D.supported() ? Skin3D.create(canvas, $('cos-stage'), { fit: 25, center: 19, autoFace: true }) : null;
   } catch {
     cos.viewer = null;
   }

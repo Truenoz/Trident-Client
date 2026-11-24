@@ -322,7 +322,7 @@
       return job;
     }
 
-    const view = { yaw: DEFAULT_YAW, pitch: DEFAULT_PITCH, userTouched: false, headYaw: 0, headPitch: 0, tHeadYaw: 0, tHeadPitch: 0 };
+    const view = { yaw: DEFAULT_YAW, pitch: DEFAULT_PITCH, goal: null, userTouched: false, headYaw: 0, headPitch: 0, tHeadYaw: 0, tHeadPitch: 0 };
     let drag = null;
 
     const onDown = (e) => {
@@ -339,6 +339,7 @@
         view.tHeadPitch = clamp((e.clientY - (r.top + r.height * 0.22)) / (r.height * 1.2), -1, 1) * 0.5;
       }
       if (!drag) return;
+      view.goal = null;
       view.yaw += (e.clientX - drag.x) * 0.012;
       view.pitch = clamp(view.pitch + (e.clientY - drag.y) * 0.006, -0.6, 0.6);
       drag.x = e.clientX; drag.y = e.clientY;
@@ -382,6 +383,12 @@
       const sway = view.userTouched || drag ? 0 : Math.sin(t * 0.0006) * 0.06;
       const breathe = Math.sin(t * 0.0018);
 
+      if (view.goal !== null) {
+        const tw = Math.PI * 2;
+        let d = ((view.goal - view.yaw) % tw + tw * 1.5) % tw - tw / 2;
+        view.yaw += d * 0.08;
+        if (Math.abs(d) < 0.002) view.goal = null;
+      }
       const rootRot = m4.mul(m4.rx(view.pitch), m4.ry(view.yaw + sway));
       const root = m4.mul(rootRot, m4.move(0, -centerY, 0));
       const dist = fitHalf / Math.tan(0.22);
@@ -501,7 +508,13 @@
         for (const id of list) {
           try { loaded.push(await loadCosmetic(id)); } catch (e) { error = (e && e.message) || String(e); console.warn('[Skin3D] cosmético', id, e); }
         }
-        if (token === cosToken) cosItems = loaded;
+        if (token === cosToken) {
+          cosItems = loaded;
+          if (opts && opts.autoFace && loaded.length) {
+            view.goal = loaded.some((it) => !it.head) ? DEFAULT_YAW + Math.PI * 0.82 : DEFAULT_YAW;
+            view.userTouched = true;
+          }
+        }
         if (error && !loaded.length) throw new Error(error);
         return loaded.length;
       },

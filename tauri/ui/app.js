@@ -181,6 +181,9 @@ function goTo(view, opts) {
   document.querySelectorAll('.tab[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === railView));
   $('rail-settings').classList.remove('active');
   Object.entries(els.views).forEach(([name, el]) => el.classList.toggle('active', name === view));
+  const content = document.querySelector('main.content');
+  if (content && state.lastView !== view) content.scrollTop = 0;
+  state.lastView = view;
   if (view === 'profiles') renderProfiles();
   if (view === 'detail') renderDetail(opts.id, opts.tab);
   if (view === 'browse') renderBrowse();
