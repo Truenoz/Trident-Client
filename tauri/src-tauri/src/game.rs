@@ -392,6 +392,13 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     }
     let session = get_session(app).ok_or("La sesión se cerró mientras se preparaba el juego.")?;
     crate::social::game_link(&user_dir, &inst, &session);
+    let menu_dir = inst.join("config").join("tridentclient");
+    let menu = if session.offline {
+        tokio::time::timeout(std::time::Duration::from_secs(5), crate::skins::menu_skin(&user_dir, &session.name)).await.ok().flatten()
+    } else {
+        None
+    };
+    crate::skins::write_menu_skin_files(&menu_dir, menu.as_ref());
 
     let (launch_id, with_nova) = prepare_profile(app, &profile, &inst, &game_dir).await?;
 

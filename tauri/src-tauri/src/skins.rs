@@ -202,6 +202,29 @@ pub fn set_offline_skin(user_dir: &Path, name: &str, data_url: &str, model: &str
     offline_skin(user_dir, name).ok_or_else(|| "No se pudo guardar la skin.".to_string())
 }
 
+pub fn write_menu_skin_files(dir: &Path, skin: Option<&Value>) {
+    let wide = dir.join("menu_skin.png");
+    let slim = dir.join("menu_skin_slim.png");
+    let _ = std::fs::remove_file(&wide);
+    let _ = std::fs::remove_file(&slim);
+    let Some(v) = skin else { return };
+    let Some(b64) = v["skin"].as_str().and_then(|s| s.strip_prefix("data:image/png;base64,")) else { return };
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(b64) else { return };
+    if png_size(&bytes) != Some((64, 64)) {
+        return;
+    }
+    let target = if v["model"].as_str() == Some("slim") { slim } else { wide };
+    let _ = std::fs::create_dir_all(dir);
+    let _ = std::fs::write(target, bytes);
+}
+
+pub async fn menu_skin(user_dir: &Path, name: &str) -> Option<Value> {
+    if let Some(v) = offline_skin(user_dir, name) {
+        return Some(v);
+    }
+    get_skin(&user_dir.join("skin-cache"), name, false, None).await.ok().filter(|v| v["skin"].is_string())
+}
+
 pub fn clear_offline_skin(user_dir: &Path, name: &str) {
     let _ = std::fs::remove_file(offline_skin_file(user_dir, name));
 }
@@ -339,6 +362,18 @@ mod offline_skin_tests {
         assert_eq!(offline_skin(&dir, "dave").unwrap()["source"], "propia");
         assert!(set_offline_skin(&dir, "Dave", &png(64, 32), "x").is_ok());
         assert_eq!(offline_skin(&dir, "DAVE").unwrap()["model"], "classic");
+        let out = dir.join("cfg");
+        set_offline_skin(&dir, "Dave", &png(64, 64), "slim").unwrap();
+        write_menu_skin_files(&out, offline_skin(&dir, "Dave").as_ref());
+        assert!(out.join("menu_skin_slim.png").exists() && !out.join("menu_skin.png").exists());
+        set_offline_skin(&dir, "Dave", &png(64, 32), "classic").unwrap();
+        write_menu_skin_files(&out, offline_skin(&dir, "Dave").as_ref());
+        assert!(!out.join("menu_skin_slim.png").exists() && !out.join("menu_skin.png").exists());
+        set_offline_skin(&dir, "Dave", &png(64, 64), "classic").unwrap();
+        write_menu_skin_files(&out, offline_skin(&dir, "Dave").as_ref());
+        assert!(out.join("menu_skin.png").exists());
+        write_menu_skin_files(&out, None);
+        assert!(!out.join("menu_skin.png").exists());
         clear_offline_skin(&dir, "Dave");
         assert!(offline_skin(&dir, "Dave").is_none());
         let _ = std::fs::remove_dir_all(&dir);
