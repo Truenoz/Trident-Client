@@ -164,6 +164,48 @@ fn write_disk(dir: &Path, uuid: &str, v: &Value) {
     let _ = std::fs::write(cache_path(dir, uuid), v.to_string());
 }
 
+fn offline_skin_file(user_dir: &Path, name: &str) -> PathBuf {
+    user_dir.join("offline-skins").join(format!("{}.json", name.to_lowercase()))
+}
+
+pub fn offline_skin(user_dir: &Path, name: &str) -> Option<Value> {
+    let v: Value = serde_json::from_str(&std::fs::read_to_string(offline_skin_file(user_dir, name)).ok()?).ok()?;
+    let skin = v["skin"].as_str()?.to_string();
+    let model = if v["model"].as_str() == Some("slim") { "slim" } else { "classic" };
+    Some(json!({ "name": name, "uuid": "", "model": model, "skin": skin, "source": "propia" }))
+}
+
+pub fn png_size(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.len() < 24 || &bytes[..8] != b"\x89PNG\r\n\x1a\n" || &bytes[12..16] != b"IHDR" {
+        return None;
+    }
+    Some((u32::from_be_bytes(bytes[16..20].try_into().ok()?), u32::from_be_bytes(bytes[20..24].try_into().ok()?)))
+}
+
+pub fn set_offline_skin(user_dir: &Path, name: &str, data_url: &str, model: &str) -> Result<Value, String> {
+    let b64 = data_url.strip_prefix("data:image/png;base64,").ok_or("La skin tiene que ser una imagen PNG.")?;
+    if b64.len() > 200_000 {
+        return Err("La imagen es demasiado grande para ser una skin.".into());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(b64).map_err(|_| "No se pudo leer la imagen.".to_string())?;
+    match png_size(&bytes) {
+        Some((64, 64)) | Some((64, 32)) => {}
+        Some((w, h)) => return Err(format!("La skin tiene que medir 64×64 o 64×32 píxeles (esta mide {w}×{h}).")),
+        None => return Err("La skin tiene que ser una imagen PNG.".into()),
+    }
+    let model = if model == "slim" { "slim" } else { "classic" };
+    let f = offline_skin_file(user_dir, name);
+    if let Some(dir) = f.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&f, json!({ "skin": data_url, "model": model }).to_string()).map_err(|e| e.to_string())?;
+    offline_skin(user_dir, name).ok_or_else(|| "No se pudo guardar la skin.".to_string())
+}
+
+pub fn clear_offline_skin(user_dir: &Path, name: &str) {
+    let _ = std::fs::remove_file(offline_skin_file(user_dir, name));
+}
+
 pub struct Known {
     pub name: String,
     pub skin_url: Option<String>,
@@ -272,6 +314,35 @@ pub async fn get_skin(cache_dir: &Path, query: &str, force: bool, known: Option<
     }
     write_disk(cache_dir, &uuid, &result);
     Ok(result)
+}
+
+#[cfg(test)]
+mod offline_skin_tests {
+    use super::*;
+
+    fn png(w: u32, h: u32) -> String {
+        let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR".to_vec();
+        b.extend_from_slice(&w.to_be_bytes());
+        b.extend_from_slice(&h.to_be_bytes());
+        b.extend_from_slice(&[8, 6, 0, 0, 0]);
+        format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(b))
+    }
+
+    #[test]
+    fn guarda_y_borra_la_skin_no_premium() {
+        let dir = std::env::temp_dir().join(format!("trident-oskin-{}", std::process::id()));
+        assert!(offline_skin(&dir, "Dave").is_none());
+        assert!(set_offline_skin(&dir, "Dave", &png(128, 128), "classic").is_err());
+        assert!(set_offline_skin(&dir, "Dave", "data:image/jpeg;base64,AAAA", "classic").is_err());
+        let v = set_offline_skin(&dir, "Dave", &png(64, 64), "slim").unwrap();
+        assert_eq!(v["model"], "slim");
+        assert_eq!(offline_skin(&dir, "dave").unwrap()["source"], "propia");
+        assert!(set_offline_skin(&dir, "Dave", &png(64, 32), "x").is_ok());
+        assert_eq!(offline_skin(&dir, "DAVE").unwrap()["model"], "classic");
+        clear_offline_skin(&dir, "Dave");
+        assert!(offline_skin(&dir, "Dave").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 #[cfg(test)]

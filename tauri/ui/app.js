@@ -282,6 +282,7 @@ function renderAccount(account) {
     els.nametag.textContent = account.name;
     els.heroPillText.textContent = account.offline ? 'Sesión sin cuenta (offline)' : 'Sesión iniciada';
     els.accountKind.textContent = account.offline ? 'Sin cuenta (offline)' : 'Cuenta de Microsoft';
+    $('btn-offline-skin').classList.toggle('hidden', !account.offline);
   } else {
     els.nametag.textContent = 'Sin sesión';
     els.heroPillText.textContent = 'Conectá tu cuenta para jugar';
@@ -314,6 +315,64 @@ async function doLogout() {
   renderAccount(null);
 }
 els.btnLogout.addEventListener('click', doLogout);
+
+function skinIsSlim(img) {
+  if (img.naturalHeight !== 64) return false;
+  try {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const x = c.getContext('2d');
+    x.drawImage(img, 0, 0);
+    return x.getImageData(55, 20, 1, 12).data.every((v, i) => i % 4 !== 3 || v === 0);
+  } catch { return false; }
+}
+
+async function refreshMySkin() {
+  if (typeof cos !== 'undefined') cos.skinFor = null;
+  await showSkin(state.account);
+  if (state.view === 'cosmetics' && typeof renderCosmetics === 'function') renderCosmetics();
+}
+
+$('offline-skin-file').addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  if (file.size > 150000) { toast('Esa imagen es demasiado grande para ser una skin.', 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const url = String(reader.result || '');
+    const img = new Image();
+    img.onload = async () => {
+      if (img.naturalWidth !== 64 || (img.naturalHeight !== 64 && img.naturalHeight !== 32)) {
+        toast(`La skin tiene que medir 64×64 o 64×32 píxeles (esta mide ${img.naturalWidth}×${img.naturalHeight}).`, 'error');
+        return;
+      }
+      try {
+        await call(window.launcher.setOfflineSkin(url, skinIsSlim(img) ? 'slim' : 'classic'));
+        toast('Skin cambiada. Se ve en el launcher de esta PC.', 'success');
+        await refreshMySkin();
+      } catch (err) {
+        toast((err && err.message) || 'No se pudo guardar la skin.', 'error');
+      }
+    };
+    img.onerror = () => toast('No se pudo leer la imagen. Tiene que ser un PNG.', 'error');
+    img.src = url;
+  };
+  reader.readAsDataURL(file);
+});
+
+$('btn-offline-skin').addEventListener('click', (e) => {
+  popMenu(e.currentTarget, [
+    { label: 'Subir skin (PNG)…', icon: 'import', onclick: () => $('offline-skin-file').click() },
+    { label: 'Quitar mi skin', icon: 'trash', onclick: async () => {
+      try {
+        await call(window.launcher.clearOfflineSkin());
+        toast('Volviste a la skin por defecto.', 'success');
+        await refreshMySkin();
+      } catch (err) { toast((err && err.message) || 'No se pudo quitar la skin.', 'error'); }
+    } }
+  ], h('div', { class: 'pop-head' }, h('strong', { text: 'Skin de cuenta no premium' }), h('span', { class: 'muted small', text: 'Solo se ve en este launcher, no en el juego.' })));
+});
 
 function friendlyAuthError(message) {
   const m = (message || '').toLowerCase();

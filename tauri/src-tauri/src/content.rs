@@ -436,22 +436,31 @@ pub async fn browse(env: &Env, q: &Value) -> Result<Value, String> {
 pub fn targets_other_mc(label: &str, mc: &str) -> bool {
     static R: OnceLock<Regex> = OnceLock::new();
 
-    let re = R.get_or_init(|| Regex::new(r"(?i)[+\-_](?:mc)?(1\.\d{1,2}(?:\.\d{1,2})?)").expect("regex válida"));
+    let re = R.get_or_init(|| Regex::new(r"(?i)[+\-_](mc)?((?:1|2\d)\.\d{1,2}(?:\.\d{1,2})?)").expect("regex válida"));
+    let new_mc = !mc.starts_with("1.");
+    let mut other = false;
     let mut pos = 0;
     while pos <= label.len() {
-        let Some(c) = re.captures_at(label, pos) else { return false };
+        let Some(c) = re.captures_at(label, pos) else { break };
         let whole = c.get(0).expect("coincidencia completa");
         let rest = &label[whole.end()..];
         let run: String = rest.chars().take_while(|ch| ch.is_ascii_digit() || *ch == '.').collect();
         if !run.chars().any(|ch| ch.is_ascii_digit()) {
-            return &c[1] != mc;
+            let v = &c[2];
+            if v == mc {
+                return false;
+            }
+            let same_family = v.starts_with("1.") != new_mc;
+            if same_family || c.get(1).is_some() {
+                other = true;
+            }
         }
         pos = whole.start() + 1;
         while pos < label.len() && !label.is_char_boundary(pos) {
             pos += 1;
         }
     }
-    false
+    other
 }
 
 fn version_fits_mc(v: &Value, mc: &str) -> bool {
@@ -865,7 +874,7 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
             continue;
         }
 
-        let none_key = format!("perf-none:{slug}:{mc}");
+        let none_key = format!("perf-none2:{slug}:{mc}");
         if crate::dl::checked_recently(&none_key, 24) {
             continue;
         }
@@ -1055,6 +1064,15 @@ mod tests {
         assert!(!targets_other_mc("0.5.13", "1.21.8"));
         assert!(!targets_other_mc("mod-1.2.345", "1.21.8"));
         assert!(!targets_other_mc("", "1.21.8"));
+        assert!(!targets_other_mc("iris-fabric-1.11.7+mc26.3.jar", "26.3"));
+        assert!(!targets_other_mc("1.11.7+26.3-fabric", "26.3"));
+        assert!(!targets_other_mc("ImmediatelyFast-Fabric-1.17.1+26.3.jar", "26.3"));
+        assert!(!targets_other_mc("entityculling-fabric-1.12.2-mc26.3.jar", "26.3"));
+        assert!(!targets_other_mc("iris-fabric-1.8.8+mc1.21.4.jar", "1.21.4"));
+        assert!(targets_other_mc("iris-fabric-1.11.7+mc26.2.jar", "26.3"));
+        assert!(targets_other_mc("sodium-fabric-0.6.13+mc1.21.8.jar", "26.3"));
+        assert!(!targets_other_mc("lithium-fabric-0.26.4-mc26.3.jar", "26.3"));
+        assert!(targets_other_mc("lithium-fabric-0.26.4-mc26.3.jar", "1.21.8"));
     }
 
     #[test]

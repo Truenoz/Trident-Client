@@ -1095,6 +1095,7 @@ body {
 .reduce-motion .hero-bg { transition: none; transform: none; }
 
 body.game-running *, body.game-running *::before, body.game-running *::after { animation-play-state: paused !important; }
+body.game-running .view.active, body.game-running .modal-overlay, body.game-running .sp, body.game-running .banner-era.art-on { animation: none !important; opacity: 1; transform: none; }
 
 :where(button, a, select, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--accent-a); outline-offset: 2px;

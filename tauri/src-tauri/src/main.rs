@@ -422,6 +422,9 @@ async fn skin_mine(app: tauri::AppHandle, force: Option<bool>) -> Res {
     let dir = app.state::<AppState>().user_dir.join("skin-cache");
     let force = force.unwrap_or(false);
     if session.offline {
+        if let Some(v) = skins::offline_skin(&app.state::<AppState>().user_dir, &session.name) {
+            return Ok(v);
+        }
         return skins::get_skin(&dir, &session.name, force, None).await;
     }
     let list = session.skins.as_array().cloned().unwrap_or_default();
@@ -432,6 +435,22 @@ async fn skin_mine(app: tauri::AppHandle, force: Option<bool>) -> Res {
         slim: active.is_some_and(|s| s["variant"].as_str().is_some_and(|v| v.eq_ignore_ascii_case("slim"))),
     };
     skins::get_skin(&dir, &session.id, force, Some(&known)).await
+}
+
+#[tauri::command]
+fn skin_offline_set(app: tauri::AppHandle, data: String, model: String) -> Res {
+    let session = game::get_session(&app).ok_or("No hay sesión iniciada.")?;
+    if !session.offline {
+        return Err("Tu cuenta es premium: la skin se cambia en minecraft.net.".into());
+    }
+    skins::set_offline_skin(&app.state::<AppState>().user_dir, &session.name, &data, &model)
+}
+
+#[tauri::command]
+fn skin_offline_clear(app: tauri::AppHandle) -> Res {
+    let session = game::get_session(&app).ok_or("No hay sesión iniciada.")?;
+    skins::clear_offline_skin(&app.state::<AppState>().user_dir, &session.name);
+    Ok(Value::Null)
 }
 
 #[tauri::command]
@@ -791,6 +810,8 @@ fn main() {
             logs_read,
             skin_get,
             skin_mine,
+            skin_offline_set,
+            skin_offline_clear,
             debug_export,
             update_check,
             update_hold,

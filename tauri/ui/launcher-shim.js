@@ -113,6 +113,8 @@
 
     getSkin: cmd('skin_get', (query, opts) => ({ query: String(query || ''), force: !!(opts && opts.force) })),
     getMySkin: cmd('skin_mine', (opts) => ({ force: !!(opts && opts.force) })),
+    setOfflineSkin: cmd('skin_offline_set', (data, model) => ({ data: String(data), model: model === 'slim' ? 'slim' : 'classic' })),
+    clearOfflineSkin: cmd('skin_offline_clear'),
     exportDebug: cmd('debug_export'),
 
     checkUpdates: cmd('update_check'),
