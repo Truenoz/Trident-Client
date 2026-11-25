@@ -1,6 +1,6 @@
 {
   "identifier": "default",
   "description": "Permisos de la ventana principal de Trident Client",
-  "windows": ["main"],
+  "windows": ["main", "traymenu"],
   "permissions": ["core:default"]
 }

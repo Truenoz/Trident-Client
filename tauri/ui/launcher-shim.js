@@ -44,6 +44,7 @@
   window.launcher = {
 
     appInfo: cmd('app_info'),
+    onlineGet: cmd('online_get'),
     getSettings: cmd('settings_get'),
     setSettings: cmd('settings_set', (patch) => ({ patch: patch || {} })),
     listVersions: cmd('versions_list'),
@@ -110,6 +111,12 @@
     netOfflineStatus: cmd('net_offline_status'),
     netOfflineLink: cmd('net_offline_link', (password, register) => ({ password: String(password || ''), register: !!register })),
     netOfflineUnlink: cmd('net_offline_unlink'),
+    bedrockStatus: cmd('bedrock_status'),
+    bedrockPlay: cmd('bedrock_play', (id) => ({ id: id ? String(id) : null })),
+    bedrockInstall: cmd('bedrock_install'),
+    bedrockBackup: cmd('bedrock_backup', (path) => ({ path: String(path) })),
+    bedrockImport: cmd('bedrock_import'),
+    bedrockOpen: cmd('bedrock_open', (path) => ({ path: String(path) })),
 
     getSkin: cmd('skin_get', (query, opts) => ({ query: String(query || ''), force: !!(opts && opts.force) })),
     getMySkin: cmd('skin_mine', (opts) => ({ force: !!(opts && opts.force) })),
@@ -122,6 +129,7 @@
     startUpdate: cmd('update_start'),
 
     onStatus: (cb) => subscribe('game:status', cb),
+    onOnline: (cb) => subscribe('online:count', cb),
     onLog: (cb) => subscribe('game:log', cb),
     onMaximized: (cb) => subscribe('win:maximized', cb),
     onUpdate: (cb) => subscribe('update:status', cb),

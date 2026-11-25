@@ -8,6 +8,34 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.4.9', [
+    ['nuevo', 'Vuelven los perfiles de Minecraft Bedrock, con su botón JUGAR, sus mundos y los logos de Java y Bedrock.'],
+    ['nuevo', 'La opción «Con Trident Client» de Nuevo perfil muestra el logo de Trident.'],
+    ['nuevo', 'Después de cada actualización se abre esta ventana con lo que se agregó, cambió o quitó.'],
+    ['nuevo', 'Arriba, al lado del logo, se ve cuántos jugadores tienen Trident Client abierto en este momento.'],
+    ['cambio', 'El menú del ícono de la bandeja es más negro, con esquinas redondeadas y una línea que separa las opciones.'],
+    ['arreglo', 'Mod Menu se instala también en Minecraft 26.x.'],
+    ['arreglo', 'Los mods de rendimiento se instalan bien en 26.x: el launcher ya no confunde la versión de un mod con la de Minecraft.'],
+    ['arreglo', 'Sodium queda en la versión que pide Iris, así el juego no se cierra al abrir.'],
+    ['arreglo', 'Las pestañas del launcher ya no quedan en blanco mientras Minecraft está abierto.'],
+    ['quitado', 'Los Trident Coins diarios ya no se reclaman en el launcher: ahora se reclaman dentro del juego.']
+  ]],
+  ['1.4.3', [
+    ['nuevo', 'Cuentas no premium: creá una contraseña en Cosméticos para usar tus Trident Coins y cosméticos.'],
+    ['nuevo', 'Las cuentas no premium pueden elegir su propia skin desde el launcher.'],
+    ['arreglo', 'La vista previa 3D de los cosméticos carga bien.']
+  ]],
+  ['1.4.1', [
+    ['nuevo', 'Nueva pestaña Cosméticos: tienda con Trident Coins, tus cosméticos y vista 3D de tu personaje con el cosmético puesto.'],
+    ['nuevo', 'Lo que compres o equipes en el launcher se aplica también en Minecraft con Trident Client.']
+  ]],
+  ['1.4.0', [
+    'Perfiles de Minecraft Bedrock: elegí «Bedrock» al crear un perfil y descargalo desde el perfil.',
+    'Mundos de Bedrock: verlos, hacer copias de seguridad (.mcworld) e importar mundos.',
+    'Cada perfil muestra el logo de su edición: bloque de pasto para Java y bedrock para Bedrock.',
+    'Se quitó una opción de Java que hacía más lento el arranque de Minecraft en algunas PCs.',
+    'El Registro muestra cuánto tardó el launcher en preparar el juego.'
+  ]],
   ['1.3.7', [
     'Los mods de rendimiento (Sodium, Iris Shaders, Lithium, FerriteCore, ImmediatelyFast, Entity Culling, BadOptimizations y Mod Menu) se instalan siempre en cada perfil con Trident Client.',
     'Minecraft arranca con opciones de Java afinadas y prioridad alta: menos tirones y más FPS.',
@@ -60,12 +88,55 @@ const CHANGELOG = [
   ['1.0.0', ['Primera versión: launcher, Nova Client dentro del juego, Discord y actualizaciones.']]
 ];
 
+const CL_KINDS = { nuevo: 'Nuevo', cambio: 'Cambió', quitado: 'Se quitó', arreglo: 'Arreglado' };
+
+function clItem(i) {
+  if (!Array.isArray(i)) return h('li', { text: i });
+  const [kind, text] = i;
+  return h('li', { class: 'cl-item' }, h('span', { class: `cl-kind cl-${kind}`, text: CL_KINDS[kind] || kind }), h('span', { text }));
+}
+
+function clBlocks(list) {
+  return list.map(([v, items]) => h('div', { class: 'cl-block' }, h('strong', { text: `v${v}` }), h('ul', { class: 'plain-list' }, items.map(clItem))));
+}
+
+function verCmp(a, b) {
+  const x = String(a || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const y = String(b || '').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
 function openChangelog() {
   const m = modal({
     title: 'Registro de cambios',
     icon: 'list',
-    body: CHANGELOG.map(([v, items]) => h('div', { class: 'cl-block' }, h('strong', { text: `v${v}` }), h('ul', { class: 'plain-list' }, items.map((i) => h('li', { text: i }))))),
+    body: clBlocks(CHANGELOG),
     footer: [h('button', { class: 'btn btn-accent', type: 'button', text: 'Cerrar', onclick: () => m.close() })]
+  });
+}
+
+function showWhatsNew() {
+  const cur = state.info && state.info.version;
+  if (!cur) return;
+  const seen = state.settings && state.settings.seenVersion;
+  if (seen && verCmp(cur, seen) <= 0) return;
+  saveSetting({ seenVersion: cur }).catch(() => {});
+  if (!seen && !state.profiles.length) return;
+  let list = CHANGELOG.filter(([v]) => verCmp(v, cur) <= 0 && (!seen || verCmp(v, seen) > 0));
+  if (!list.length) list = CHANGELOG.filter(([v]) => verCmp(v, cur) <= 0).slice(0, 1);
+  if (!list.length) return;
+  const m = modal({
+    title: `Novedades de la v${cur}`,
+    icon: 'list',
+    body: [h('p', { class: 'muted small cl-lead', text: 'El launcher se actualizó. Esto es lo que se agregó, cambió o quitó:' }), ...clBlocks(list)],
+    footer: [
+      h('button', { class: 'btn btn-dark', type: 'button', text: 'Ver todo el registro', onclick: () => { m.close(); openChangelog(); } }),
+      h('button', { class: 'btn btn-accent', type: 'button', text: 'Entendido', onclick: () => m.close() })
+    ]
   });
 }
 

@@ -275,13 +275,14 @@ function popMenu(anchor, items, header) {
   const menu = h('div', { class: 'pop-menu', role: 'menu' });
   if (header) menu.append(header);
   for (const it of items) {
+    if (!it) continue;
     if (it === 'sep') { menu.append(h('div', { class: 'pop-sep' })); continue; }
     menu.append(h('button', {
       class: `pop-item${it.danger ? ' danger' : ''}`,
       type: 'button',
       role: 'menuitem',
       onclick: () => { closeMenu(); it.onclick(); }
-    }, it.icon ? icon(it.icon) : h('span', { class: 'ico' }), h('span', { text: it.label })));
+    }, it.img ? it.img : it.icon ? icon(it.icon) : h('span', { class: 'ico' }), h('span', { text: it.label })));
   }
   document.body.append(menu);
   const r = anchor.getBoundingClientRect();
@@ -362,7 +363,21 @@ function paintArt(el) {
   img.src = url;
 }
 
+function isBedrock(p) {
+  return !!p && p.loader === 'bedrock';
+}
+
+function editionImg(p, size) {
+  const bedrockP = isBedrock(p);
+  return h('img', { class: 'edition-ico', src: bedrockP ? 'editions/bedrock.png' : 'editions/java.png', alt: bedrockP ? 'Bedrock' : 'Java', title: bedrockP ? 'Minecraft Bedrock' : 'Minecraft Java', width: size || 16, height: size || 16, draggable: false });
+}
+
 function banner(profile, cls) {
+  if (isBedrock(profile)) {
+    return h('div', { class: `banner banner-bedrock ${cls || ''}`, title: 'Minecraft Bedrock' },
+      h('img', { class: 'banner-bedrock-logo', src: 'editions/bedrock.png', alt: '', draggable: false }),
+      h('span', { class: 'era-chip', text: 'Bedrock Edition' }));
+  }
   const label = mcLabel(profile.mc);
   const el = h('div', { class: `banner banner-era ${cls || ''}`, title: label, dataset: { mc: profile.mc || '' } });
   if (label) el.append(h('span', { class: 'era-chip', text: label }));

@@ -436,7 +436,7 @@ pub async fn browse(env: &Env, q: &Value) -> Result<Value, String> {
 pub fn targets_other_mc(label: &str, mc: &str) -> bool {
     static R: OnceLock<Regex> = OnceLock::new();
 
-    let re = R.get_or_init(|| Regex::new(r"(?i)[+\-_](mc)?((?:1|2\d)\.\d{1,2}(?:\.\d{1,2})?)").expect("regex válida"));
+    let re = R.get_or_init(|| Regex::new(r"(?i)[+\-_](mc)?((?:1|2[6-9]|[3-9]\d)\.\d{1,2}(?:\.\d{1,2})?)").expect("regex válida"));
     let new_mc = !mc.starts_with("1.");
     let mut other = false;
     let mut pos = 0;
@@ -1139,6 +1139,9 @@ mod tests {
         assert!(targets_other_mc("sodium-fabric-0.6.13+mc1.21.8.jar", "26.3"));
         assert!(!targets_other_mc("lithium-fabric-0.26.4-mc26.3.jar", "26.3"));
         assert!(targets_other_mc("lithium-fabric-0.26.4-mc26.3.jar", "1.21.8"));
+        assert!(!targets_other_mc("modmenu-21.0.1.jar", "26.3"));
+        assert!(!targets_other_mc("21.0.1", "26.3"));
+        assert!(targets_other_mc("modmenu-17.0.0+mc26.1.jar", "26.3"));
         assert!(is_prerelease("mc26.3-0.9.4-beta.1-fabric"));
         assert!(is_prerelease("1.0.0-alpha.2"));
         assert!(!is_prerelease("mc26.3-0.9.3-fabric"));

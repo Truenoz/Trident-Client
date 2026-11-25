@@ -1,5 +1,6 @@
 use serde_json::{json, Value};
 use std::path::Path;
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Manager};
@@ -19,6 +20,45 @@ struct Cached {
 }
 
 static TOKEN: Mutex<Option<Cached>> = Mutex::new(None);
+static ONLINE: AtomicI64 = AtomicI64::new(-1);
+
+fn install_id(user_dir: &Path) -> String {
+    let path = user_dir.join("install-id");
+    if let Ok(text) = std::fs::read_to_string(&path) {
+        let t = text.trim().to_lowercase();
+        if t.len() == 32 && t.chars().all(|c| c.is_ascii_hexdigit()) {
+            return t;
+        }
+    }
+    let bytes: [u8; 16] = rand::random();
+    let id: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    let _ = std::fs::create_dir_all(user_dir);
+    let _ = std::fs::write(&path, &id);
+    id
+}
+
+pub fn online_count() -> Option<i64> {
+    let n = ONLINE.load(Ordering::Relaxed);
+    (n >= 0).then_some(n)
+}
+
+pub fn start_online(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let user_dir = app.state::<AppState>().user_dir.clone();
+        let id = install_id(&user_dir);
+        loop {
+            if let Ok(url) = base_url(&app) {
+                if let Ok((200, v)) = post(&format!("{url}/v1/stats/ping"), None, &json!({ "id": id })).await {
+                    if let Some(n) = v["online"].as_i64() {
+                        ONLINE.store(n, Ordering::Relaxed);
+                        let _ = tauri::Emitter::emit(&app, "online:count", n);
+                    }
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(60)).await;
+        }
+    });
+}
 
 fn base_url(app: &AppHandle) -> Result<String, String> {
     let user_dir = app.state::<AppState>().user_dir.clone();

@@ -119,28 +119,85 @@ pub fn show_main_window(app: &AppHandle) {
     }
 }
 
-pub fn create_tray(app: &AppHandle) -> Result<(), String> {
-    use tauri::menu::{MenuBuilder, MenuItemBuilder};
+pub const TRAY_MENU: &str = "traymenu";
+const TRAY_W: f64 = 196.0;
+const TRAY_H: f64 = 84.0;
+
+pub fn create_tray_menu(app: &AppHandle, browser_args: &str) -> bool {
+    tauri::WebviewWindowBuilder::new(app, TRAY_MENU, tauri::WebviewUrl::App("traymenu.html".into()))
+        .title("Trident Client")
+        .inner_size(TRAY_W, TRAY_H)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .resizable(false)
+        .skip_taskbar(true)
+        .always_on_top(true)
+        .visible(false)
+        .focused(false)
+        .additional_browser_args(browser_args)
+        .build()
+        .is_ok()
+}
+
+fn show_tray_menu(app: &AppHandle, x: f64, y: f64) {
+    let Some(w) = app.get_webview_window(TRAY_MENU) else { return };
+    let monitor = app.monitor_from_point(x, y).ok().flatten();
+    let scale = monitor.as_ref().map(|m| m.scale_factor()).unwrap_or(1.0);
+    let _ = w.set_size(tauri::LogicalSize::new(TRAY_W, TRAY_H));
+    let (pw, ph) = (TRAY_W * scale, TRAY_H * scale);
+    let mut left = x;
+    let mut top = y - ph;
+    if let Some(m) = monitor.as_ref() {
+        let area = m.work_area();
+        let (ax, ay) = (area.position.x as f64, area.position.y as f64);
+        let (aw, ah) = (area.size.width as f64, area.size.height as f64);
+        if left + pw > ax + aw {
+            left = x - pw;
+        }
+        if top < ay {
+            top = y;
+        }
+        left = left.clamp(ax, (ax + aw - pw).max(ax));
+        top = top.clamp(ay, (ay + ah - ph).max(ay));
+    }
+    let _ = w.set_position(tauri::PhysicalPosition::new(left.round() as i32, top.round() as i32));
+    let _ = w.show();
+    let _ = w.set_focus();
+}
+
+pub fn tray_action(app: &AppHandle, action: &str) {
+    if let Some(w) = app.get_webview_window(TRAY_MENU) {
+        let _ = w.hide();
+    }
+    match action {
+        "open" => show_main_window(app),
+        "quit" => app.exit(0),
+        _ => {}
+    }
+}
+
+pub fn create_tray(app: &AppHandle, custom_menu: bool) -> Result<(), String> {
+    use tauri::menu::{MenuBuilder, MenuItemBuilder, PredefinedMenuItem};
     use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
-    let open = MenuItemBuilder::with_id("open", "Abrir lanzador").build(app).map_err(|e| e.to_string())?;
-    let quit = MenuItemBuilder::with_id("quit", "Salir del launcher").build(app).map_err(|e| e.to_string())?;
-    let menu = MenuBuilder::new(app).item(&open).item(&quit).build().map_err(|e| e.to_string())?;
     let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png")).map_err(|e| e.to_string())?;
-
-    TrayIconBuilder::with_id("main")
-        .icon(icon)
-        .tooltip("Trident Client")
-        .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" => show_main_window(app),
-            "quit" => app.exit(0),
-            _ => {}
-        })
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                show_main_window(tray.app_handle());
+    let mut builder = TrayIconBuilder::with_id("main").icon(icon).tooltip("Trident Client").show_menu_on_left_click(false);
+    if !custom_menu {
+        let open = MenuItemBuilder::with_id("open", "Abrir launcher").build(app).map_err(|e| e.to_string())?;
+        let sep = PredefinedMenuItem::separator(app).map_err(|e| e.to_string())?;
+        let quit = MenuItemBuilder::with_id("quit", "Salir del launcher").build(app).map_err(|e| e.to_string())?;
+        let menu = MenuBuilder::new(app).item(&open).item(&sep).item(&quit).build().map_err(|e| e.to_string())?;
+        builder = builder.menu(&menu).on_menu_event(|app, event| tray_action(app, event.id.as_ref()));
+    }
+    builder
+        .on_tray_icon_event(move |tray, event| {
+            if let TrayIconEvent::Click { button, button_state: MouseButtonState::Up, position, .. } = event {
+                match button {
+                    MouseButton::Left => tray_action(tray.app_handle(), "open"),
+                    MouseButton::Right if custom_menu => show_tray_menu(tray.app_handle(), position.x, position.y),
+                    _ => {}
+                }
             }
         })
         .build(app)
