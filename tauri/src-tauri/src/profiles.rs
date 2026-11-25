@@ -133,39 +133,6 @@ pub fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-pub fn ensure_default(user_dir: &Path, settings: &Map<String, Value>) -> Result<(), String> {
-    let mut s = Store::load(user_dir);
-    if !s.arr("profiles").is_empty() {
-        return Ok(());
-    }
-    let last = settings
-        .get("lastVersion")
-        .and_then(|v| v.as_str())
-        .unwrap_or("1.21.4")
-        .to_string();
-    let want_nova = settings.get("novaClient").and_then(|v| v.as_bool()).unwrap_or(true);
-    let loader = if want_nova { "fabric" } else { "vanilla" };
-    let name = format!("Trident {}", last);
-    s.arr_mut("profiles").push(json!({
-        "id": new_id(),
-        "name": name,
-        "mc": last,
-        "loader": loader,
-        "nova": want_nova,
-        "autoSync": true,
-        "fabricApi": true,
-        "folder": "",
-        "pinned": false,
-        "origin": "custom",
-        "legacy": true,
-        "created": now_ms(),
-        "lastPlayed": 0,
-        "playtimeSec": 0,
-        "perf": { "master": false, "off": [] }
-    }));
-    s.save(user_dir)
-}
-
 pub fn list(user_dir: &Path, game_dir: &Path) -> Value {
     let s = Store::load(user_dir);
     json!({

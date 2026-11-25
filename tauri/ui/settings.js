@@ -8,6 +8,10 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.4.10', [
+    ['cambio', 'Las imágenes de cada versión en los perfiles aparecen al instante: se guardan en tu PC la primera vez.'],
+    ['quitado', 'El launcher ya no crea solo un perfil «Trident 1.21.4» la primera vez: ahora elegís vos la versión al crear tu perfil.']
+  ]],
   ['1.4.9', [
     ['nuevo', 'Vuelven los perfiles de Minecraft Bedrock, con su botón JUGAR, sus mundos y los logos de Java y Bedrock.'],
     ['nuevo', 'La opción «Con Trident Client» de Nuevo perfil muestra el logo de Trident.'],

@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod art;
 mod account;
 mod bedrock;
 mod content;
@@ -147,18 +148,8 @@ async fn news_list(app: tauri::AppHandle) -> Res {
 }
 
 #[tauri::command]
-async fn version_art(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> Res {
-    let cache = state.user_dir.join("version-art.json");
-    match net::version_art(&app.package_info().version.to_string()).await {
-        Ok(map) => {
-            let _ = std::fs::write(&cache, map.to_string());
-            Ok(map)
-        }
-        Err(e) => std::fs::read_to_string(&cache)
-            .ok()
-            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-            .ok_or(e),
-    }
+async fn version_art(app: tauri::AppHandle) -> Res {
+    art::version_art(&app).await
 }
 
 fn bedrock_roots(app: &tauri::AppHandle) -> Vec<bedrock::Root> {
@@ -824,6 +815,12 @@ fn main() {
                 let _ = w.set_focus();
             }
         }))
+        .register_asynchronous_uri_scheme_protocol(art::SCHEME, |ctx, req, responder| {
+            let app = ctx.app_handle().clone();
+            tauri::async_runtime::spawn(async move {
+                responder.respond(art::serve(app, req).await);
+            });
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -838,9 +835,6 @@ fn main() {
             };
             dl::set_checks_file(state.user_dir.join("checks.json"));
             let current = settings::read(&state.user_dir);
-            if let Err(e) = profiles::ensure_default(&state.user_dir, &current) {
-                eprintln!("No se pudo crear el perfil inicial: {e}");
-            }
             system::install_panic_reporter(state.user_dir.clone());
             app.manage(state);
 
