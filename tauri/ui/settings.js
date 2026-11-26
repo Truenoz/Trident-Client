@@ -10,6 +10,7 @@ function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 const CHANGELOG = [
   ['1.4.12', [
     ['cambio', 'Nueva barra de secciones de vidrio arriba: íconos redondos y la sección activa en blanco con su nombre.']
+    ['nuevo', 'Animaciones: la burbuja blanca se desliza entre secciones, las pantallas y tarjetas aparecen con movimiento, el botón Jugar brilla y las ventanas se abren con rebote.']
   ]],
   ['1.4.11', [
     ['arreglo', 'Mod Menu se instala de verdad en 26.3: ahora también se baja Text Placeholder API, que Mod Menu necesita.']

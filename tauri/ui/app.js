@@ -101,8 +101,20 @@ const TABS = [
   { view: 'console', icon: 'console', title: 'Registro' }
 ];
 
+function placeTabPill() {
+  const nav = $('rail-nav');
+  const pill = nav && nav.querySelector('.tab-pill');
+  if (!pill) return;
+  const a = nav.querySelector('.tab.active');
+  pill.classList.toggle('hidden', !a);
+  if (!a) return;
+  pill.style.width = `${a.offsetWidth}px`;
+  pill.style.transform = `translateX(${a.offsetLeft}px)`;
+}
+
 function mountRail() {
   const nav = $('rail-nav');
+  nav.append(h('i', { class: 'tab-pill hidden', 'aria-hidden': 'true' }));
   for (const t of TABS) {
     nav.append(h('button', {
       class: 'tab', type: 'button', dataset: { view: t.view }, title: t.title,
@@ -111,6 +123,11 @@ function mountRail() {
   }
 
   $('btn-chat').addEventListener('click', () => { if (typeof socialToggleBig === 'function') socialToggleBig(); });
+  if (typeof ResizeObserver === 'function') {
+    const ro = new ResizeObserver(() => placeTabPill());
+    nav.querySelectorAll('.tab').forEach((t) => ro.observe(t));
+  }
+  window.addEventListener('resize', placeTabPill);
 }
 
 function showError(message) {
@@ -179,6 +196,7 @@ function goTo(view, opts) {
   state.view = view;
   const railView = view === 'detail' ? 'profiles' : view;
   document.querySelectorAll('.tab[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === railView));
+  placeTabPill();
   $('rail-settings').classList.remove('active');
   Object.entries(els.views).forEach(([name, el]) => el.classList.toggle('active', name === view));
   const content = document.querySelector('main.content');

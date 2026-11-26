@@ -30,7 +30,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .tb-close:hover { background: #e5384f; color: #fff; }
 
 .view { display: none; }
-.view.active { display: block; animation: fade .18s ease; }
+.view.active { display: block; animation: view-in .38s cubic-bezier(.2, .8, .2, 1); }
+@keyframes view-in { from { opacity: 0; transform: translateY(12px) scale(.995); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
 @keyframes fade { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 
 h2 { margin: 0 0 16px; font-size: 22px; }
@@ -216,7 +217,8 @@ input[type="range"] { width: 100%; margin: 14px 0 4px; accent-color: var(--orang
 .pop-sep { height: 1px; margin: 6px 4px; background: #26262e; }
 
 .modal-overlay { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.72); backdrop-filter: blur(4px); animation: fade .15s ease; }
-.modal-box { display: flex; flex-direction: column; width: min(560px, 100%); max-height: calc(100vh - 60px); border-radius: 18px; border: 1px solid #2c2c35; background: #151518; box-shadow: 0 30px 80px rgba(0,0,0,.7); }
+@keyframes modal-pop { from { opacity: 0; transform: translateY(14px) scale(.94); } to { opacity: 1; transform: none; } }
+.modal-box { animation: modal-pop .38s cubic-bezier(.34, 1.4, .5, 1); display: flex; flex-direction: column; width: min(560px, 100%); max-height: calc(100vh - 60px); border-radius: 18px; border: 1px solid #2c2c35; background: #151518; box-shadow: 0 30px 80px rgba(0,0,0,.7); }
 .modal-box.wide { width: min(980px, 100%); }
 .modal-box.small { width: min(440px, 100%); }
 .modal-box.tall { height: calc(100vh - 60px); }
@@ -790,7 +792,17 @@ body.game-running .online-dot, body.reduce-motion .online-dot { animation: none;
   content: ""; position: absolute; left: 50%; bottom: -5px; width: 4px; height: 4px; border-radius: 50%;
   background: #fff; transform: translateX(-50%) scale(0); transition: transform .25s var(--ease);
 }
-.tab.active { background: #fff; color: #121216; padding-right: 16px; box-shadow: 0 0 0 4px rgba(255, 255, 255, .07), 0 8px 20px rgba(0, 0, 0, .35); }
+.tab { z-index: 1; }
+.tab-pill {
+  position: absolute; z-index: 0; top: 6px; left: 0; height: 40px; width: 40px; border-radius: 999px;
+  background: #fff; box-shadow: 0 0 0 4px rgba(255, 255, 255, .07), 0 8px 20px rgba(0, 0, 0, .35);
+  transition: transform .55s cubic-bezier(.34, 1.45, .5, 1), width .45s cubic-bezier(.34, 1.3, .5, 1);
+  pointer-events: none;
+}
+.tab-pill.hidden { display: block; opacity: 0; }
+.tab.active { color: #121216; padding-right: 16px; }
+.tab.active .tab-ico svg { animation: tab-pop .5s cubic-bezier(.34, 1.6, .5, 1); }
+@keyframes tab-pop { 0% { transform: scale(.6) rotate(-12deg); } 100% { transform: none; } }
 .tab.active::after { transform: translateX(-50%) scale(1); }
 .tab.active .tab-ico { background: transparent; border-color: transparent; box-shadow: none; transform: none; }
 .tab.active svg { color: #121216; }
@@ -1194,3 +1206,38 @@ body.game-running .view.active, body.game-running .modal-overlay, body.game-runn
 .bedrock-toolbar h3 { margin: 0; font-size: 18px; }
 .world-row .btn-small { flex-shrink: 0; }
 .pop-item .edition-ico { width: 18px; height: 18px; }
+
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.view.active .home > * { animation: rise .55s cubic-bezier(.2, .8, .2, 1) both; }
+.view.active .home > *:nth-child(2) { animation-delay: .05s; }
+.view.active .home > *:nth-child(3) { animation-delay: .1s; }
+.view.active .home > *:nth-child(4) { animation-delay: .15s; }
+.view.active .home > *:nth-child(5) { animation-delay: .2s; }
+.view.active .home > *:nth-child(6) { animation-delay: .25s; }
+.view.active .home > *:nth-child(n+7) { animation-delay: .3s; }
+.view.active .profile-card2, .view.active .mod-row, .view.active .trow:not(.thead) { animation: rise .45s cubic-bezier(.2, .8, .2, 1) both; }
+.view.active .profile-card2:nth-child(2), .view.active .mod-row:nth-child(2), .view.active .trow:nth-child(3) { animation-delay: .04s; }
+.view.active .profile-card2:nth-child(3), .view.active .mod-row:nth-child(3), .view.active .trow:nth-child(4) { animation-delay: .08s; }
+.view.active .profile-card2:nth-child(4), .view.active .mod-row:nth-child(4), .view.active .trow:nth-child(5) { animation-delay: .12s; }
+.view.active .profile-card2:nth-child(5), .view.active .mod-row:nth-child(5), .view.active .trow:nth-child(6) { animation-delay: .16s; }
+.view.active .profile-card2:nth-child(n+6), .view.active .mod-row:nth-child(n+6), .view.active .trow:nth-child(n+7) { animation-delay: .2s; }
+
+.launch-btn::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -45%; width: 22%; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .22), transparent); transform: skewX(-20deg);
+  animation: play-shine 5.5s ease-in-out 2s infinite;
+}
+.launch-btn:disabled::after, .launch-btn.mode-busy::after, .launch-btn.mode-stop::after, .launch-btn.mode-running-other::after { animation: none; opacity: 0; }
+@keyframes play-shine { 0%, 70% { left: -45%; } 100% { left: 130%; } }
+.launch-btn:not(:disabled):not(.mode-busy):not(.mode-stop):not(.mode-running-other) { animation: play-breathe 3.2s ease-in-out infinite; }
+@keyframes play-breathe { 50% { box-shadow: 0 14px 44px rgba(var(--accent-rgb), .55), inset 0 1px 0 rgba(255, 255, 255, .3); } }
+
+.btn:active:not(:disabled), .tb-icon:active, .hero-btn:active, .tab:active .tab-ico { transform: scale(.95); }
+.btn, .hero-btn { transition-property: background, border-color, color, filter, box-shadow, transform; transition-duration: .18s; }
+
+.topbar .tabs { animation: bar-drop .6s cubic-bezier(.34, 1.4, .5, 1) both; }
+.topbar .tb-brand { animation: bar-fade .5s ease both; }
+.topbar .tb-right { animation: bar-fade .5s ease .1s both; }
+@keyframes bar-drop { from { opacity: 0; transform: translateY(-14px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes bar-fade { from { opacity: 0; } to { opacity: 1; } }
+body.game-running .home > *, body.game-running .profile-card2, body.game-running .mod-row, body.game-running .trow, body.game-running .modal-box, body.game-running .topbar .tabs, body.game-running .topbar .tb-brand, body.game-running .topbar .tb-right, body.game-running .launch-btn, body.game-running .launch-btn::after { animation: none !important; opacity: 1; transform: none; }
