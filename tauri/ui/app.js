@@ -105,9 +105,9 @@ function mountRail() {
   const nav = $('rail-nav');
   for (const t of TABS) {
     nav.append(h('button', {
-      class: 'tab', type: 'button', dataset: { view: t.view },
+      class: 'tab', type: 'button', dataset: { view: t.view }, title: t.title,
       onclick: () => goTo(t.view)
-    }, icon(t.icon, 17), h('span', { text: t.title })));
+    }, h('span', { class: 'tab-ico' }, icon(t.icon, 17)), h('span', { class: 'tab-text', text: t.title })));
   }
 
   $('btn-chat').addEventListener('click', () => { if (typeof socialToggleBig === 'function') socialToggleBig(); });
