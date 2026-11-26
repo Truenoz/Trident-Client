@@ -877,6 +877,35 @@ async fn perf_pins(p: &Value, mc: &str) -> HashMap<String, Value> {
     pins
 }
 
+fn needs_dep(dep: &Value) -> Option<String> {
+    let pid = dep["project_id"].as_str()?;
+    if dep["dependency_type"].as_str() != Some("required") || pid == "P7dR8mSH" || pid.eq_ignore_ascii_case("fabric-api") {
+        return None;
+    }
+    Some(pid.to_string())
+}
+
+async fn perf_deps(env: &Env, p: &Value, dir: &Path, version: &Value, tag: &str, name: &str) {
+    for dep in version["dependencies"].as_array().cloned().unwrap_or_default() {
+        let Some(pid) = needs_dep(&dep) else { continue };
+        if read_index(dir).files.values().any(|f| f["projectId"].as_str() == Some(pid.as_str())) {
+            continue;
+        }
+        let step = async {
+            let Some(v) = best_version(p, &pid, "mod", true).await? else {
+                return Err(format!("falta una dependencia ({pid}) para Minecraft {}", p["mc"].as_str().unwrap_or("")));
+            };
+            let (title, icon) = project_info(&pid).await?;
+            install_version(p, &v, "mod", json!({ "title": title, "icon": icon, "managed": tag, "dependency": true })).await?;
+            (env.log)(format!("[Rendimiento] {name}: se instaló {title}, que es necesario."));
+            Ok::<(), String>(())
+        };
+        if let Err(e) = step.await {
+            (env.log)(format!("[Rendimiento] {name}: {e}"));
+        }
+    }
+}
+
 pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
     let p = env.profile(id)?;
     if !is_fabric(&p) {
@@ -915,6 +944,7 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
                 let (title, icon) = project_info(slug).await?;
                 install_version(&p, pin, "mod", json!({ "title": title, "icon": icon, "managed": tag, "pinned": true })).await?;
                 (env.log)(format!("[Rendimiento] {name} {} instalado.", pin["version_number"].as_str().unwrap_or("")));
+                perf_deps(env, &p, &dir, pin, &tag, name).await;
                 Ok::<(), String>(())
             };
             if let Err(e) = step.await {
@@ -940,7 +970,7 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
             continue;
         }
 
-        let none_key = format!("perf-none2:{slug}:{mc}");
+        let none_key = format!("perf-none3:{slug}:{mc}");
         if crate::dl::checked_recently(&none_key, 24) {
             continue;
         }
@@ -953,6 +983,7 @@ pub async fn ensure_perf(env: &Env, id: &str) -> Result<(), String> {
             let (title, icon) = project_info(slug).await?;
             install_version(&p, &version, "mod", json!({ "title": title, "icon": icon, "managed": tag })).await?;
             (env.log)(format!("[Rendimiento] {name} {} instalado.", version["version_number"].as_str().unwrap_or("")));
+            perf_deps(env, &p, &dir, &version, &tag, name).await;
             Ok(())
         };
         if let Err(e) = step.await {
@@ -1140,6 +1171,10 @@ mod tests {
         assert!(!targets_other_mc("lithium-fabric-0.26.4-mc26.3.jar", "26.3"));
         assert!(targets_other_mc("lithium-fabric-0.26.4-mc26.3.jar", "1.21.8"));
         assert!(!targets_other_mc("modmenu-21.0.1.jar", "26.3"));
+        assert!(!targets_other_mc("placeholder-api-3.2.0+26.3.jar", "26.3"));
+        assert_eq!(needs_dep(&json!({ "project_id": "eXts2L7r", "dependency_type": "required" })).as_deref(), Some("eXts2L7r"));
+        assert_eq!(needs_dep(&json!({ "project_id": "P7dR8mSH", "dependency_type": "required" })), None);
+        assert_eq!(needs_dep(&json!({ "project_id": "x", "dependency_type": "optional" })), None);
         assert!(!targets_other_mc("21.0.1", "26.3"));
         assert!(targets_other_mc("modmenu-17.0.0+mc26.1.jar", "26.3"));
         assert!(is_prerelease("mc26.3-0.9.4-beta.1-fabric"));

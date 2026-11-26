@@ -8,6 +8,9 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.4.11', [
+    ['arreglo', 'Mod Menu se instala de verdad en 26.3: ahora también se baja Text Placeholder API, que Mod Menu necesita.']
+  ]],
   ['1.4.10', [
     ['cambio', 'Las imágenes de cada versión en los perfiles aparecen al instante: se guardan en tu PC la primera vez.'],
     ['quitado', 'El launcher ya no crea solo un perfil «Trident 1.21.4» la primera vez: ahora elegís vos la versión al crear tu perfil.']
