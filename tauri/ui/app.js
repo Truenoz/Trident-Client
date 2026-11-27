@@ -976,7 +976,7 @@ function openProfileWizard({ profile = null } = {}) {
     const types = h('div', { class: `type-cards${editing ? '' : ' three'}` },
       typeCard('nova', 'Con Trident Client', 'Java · Fabric + HUD, amigos, zoom y más.', 'trident'),
       typeCard('vanilla', 'Vanilla', 'Java · Minecraft sin mods.', 'java'),
-      editing ? null : typeCard('bedrock', 'Bedrock', 'Bedrock Edition: juego cruzado con Xbox y celular.', 'bedrock'));
+      editing || (state.info && state.info.platform && state.info.platform !== 'win32') ? null : typeCard('bedrock', 'Bedrock', 'Bedrock Edition: juego cruzado con Xbox y celular.', 'bedrock'));
     const versionField = h('div', { class: 'field' }, h('span', { class: 'field-label', text: 'Versión de Minecraft' }), search, grid);
     const bedrockNote = h('div', { class: 'field bedrock-note' },
       h('img', { src: 'editions/bedrock.png', alt: '', width: 44, height: 44, draggable: false }),

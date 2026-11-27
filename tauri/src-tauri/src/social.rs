@@ -158,7 +158,7 @@ fn link_set(user_dir: &Path, name: &str, device: Option<&str>) {
         }
     }
     let _ = std::fs::create_dir_all(user_dir);
-    if let Err(e) = std::fs::write(user_dir.join(LINKS_FILE), account::seal(Value::Object(map).to_string().as_bytes())) {
+    if let Err(e) = account::write_private(&user_dir.join(LINKS_FILE), &account::seal(Value::Object(map).to_string().as_bytes())) {
         eprintln!("No se pudo guardar la cuenta de Trident Net: {e}");
     }
 }

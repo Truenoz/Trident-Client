@@ -33,10 +33,6 @@ pub async fn ensure_java(game_dir: &Path, custom: &str, major: u32, progress: Pr
         return Ok(PathBuf::from(custom.trim()));
     }
 
-    if !cfg!(windows) {
-        return Ok(PathBuf::from("java"));
-    }
-
     let n = adopt_major(major);
     let runtime = game_dir.join("runtime").join(format!("jre-{n}"));
     if let Some(found) = find_file(&runtime, EXE) {
@@ -46,8 +42,8 @@ pub async fn ensure_java(game_dir: &Path, custom: &str, major: u32, progress: Pr
     let label = format!("Descargando Java {n}…");
     progress(label.clone(), Some(0.0));
     tokio::fs::create_dir_all(&runtime).await.map_err(|e| e.to_string())?;
-    let zip_path = runtime.join("jre.zip");
-    let url = format!("https://api.adoptium.net/v3/binary/latest/{n}/ga/windows/x64/jre/hotspot/normal/eclipse");
+    let zip_path = runtime.join(if cfg!(windows) { "jre.zip" } else { "jre.tar.gz" });
+    let url = adoptium_url(n);
     dl::download(&url, &zip_path, None, |got, total| {
         if total > 0 {
             progress(label.clone(), Some(got as f64 / total as f64 * 100.0));
@@ -57,10 +53,52 @@ pub async fn ensure_java(game_dir: &Path, custom: &str, major: u32, progress: Pr
 
     progress(format!("Instalando Java {n}…"), None);
     let (zp, rt) = (zip_path.clone(), runtime.clone());
-    tokio::task::spawn_blocking(move || unzip(&zp, &rt)).await.map_err(|e| e.to_string())??;
+    tokio::task::spawn_blocking(move || if cfg!(windows) { unzip(&zp, &rt) } else { untar(&zp, &rt) })
+        .await
+        .map_err(|e| e.to_string())??;
     let _ = tokio::fs::remove_file(&zip_path).await;
 
     find_file(&runtime, EXE).ok_or_else(|| format!("No se encontró {EXE} tras instalar Java."))
+}
+
+fn adoptium_os() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "mac"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "windows"
+    }
+}
+
+fn adoptium_arch() -> &'static str {
+    match std::env::consts::ARCH {
+        "aarch64" => "aarch64",
+        "x86" => "x32",
+        _ => "x64",
+    }
+}
+
+pub fn adoptium_url(n: u32) -> String {
+    format!(
+        "https://api.adoptium.net/v3/binary/latest/{n}/ga/{}/{}/jre/hotspot/normal/eclipse",
+        adoptium_os(),
+        adoptium_arch()
+    )
+}
+
+pub fn untar(archive: &Path, dest: &Path) -> Result<(), String> {
+    let status = std::process::Command::new("tar")
+        .arg("-xzf")
+        .arg(archive)
+        .arg("-C")
+        .arg(dest)
+        .status()
+        .map_err(|e| format!("No se pudo descomprimir Java: {e}"))?;
+    if !status.success() {
+        return Err("El archivo de Java está dañado.".into());
+    }
+    Ok(())
 }
 
 pub fn unzip(zip_path: &Path, dest: &Path) -> Result<(), String> {

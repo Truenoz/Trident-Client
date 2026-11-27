@@ -123,6 +123,10 @@ pub fn show_main_window(app: &AppHandle) {
     }
 }
 
+pub fn hides_to_tray(app: &AppHandle) -> bool {
+    !cfg!(target_os = "linux") && app.tray_by_id("main").is_some()
+}
+
 pub const TRAY_MENU: &str = "traymenu";
 const TRAY_W: f64 = 196.0;
 const TRAY_H: f64 = 84.0;

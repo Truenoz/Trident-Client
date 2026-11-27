@@ -10,9 +10,25 @@ on:
       - "v*"
 
 jobs:
-  tauri:
-    runs-on: windows-latest
-    timeout-minutes: 45
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            args: ""
+            bundle: target/release/bundle
+          - os: macos-latest
+            name: macos
+            args: "--target universal-apple-darwin"
+            bundle: target/universal-apple-darwin/release/bundle
+          - os: ubuntu-22.04
+            name: linux
+            args: ""
+            bundle: target/release/bundle
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -28,10 +44,19 @@ jobs:
           node-version: 20
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.name == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Dependencias de Linux
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: tauri/src-tauri
+          key: ${{ matrix.name }}
 
       - name: Instalar CLI de Tauri
         working-directory: tauri
@@ -47,64 +72,84 @@ jobs:
             c.version = process.argv[1];
             fs.writeFileSync(f, JSON.stringify(c, null, 2) + '\n');
           " "$v"
-          sed -i -E "0,/^version = \".*\"/s//version = \"$v\"/" tauri/src-tauri/Cargo.toml
+          node -e "
+            const fs = require('fs'), f = 'tauri/src-tauri/Cargo.toml';
+            const t = fs.readFileSync(f, 'utf8').replace(/^version = \".*\"/m, 'version = \"' + process.argv[1] + '\"');
+            fs.writeFileSync(f, t);
+          " "$v"
           grep -m1 '^version' tauri/src-tauri/Cargo.toml
 
-      - name: Comprobar que el Rust compila
-        working-directory: tauri/src-tauri
-        run: cargo check --release
-
-      - name: Pruebas (cuenta, DPAPI, lanzador, actualizaciones y una JVM real)
+      - name: Pruebas
         working-directory: tauri/src-tauri
         run: cargo test --release
 
-      - name: Compilar instalador (.exe)
+      - name: Compilar
         working-directory: tauri
         run: |
           if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ]; then
-            npx tauri build --config src-tauri/tauri.release.conf.json
+            npx tauri build ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
           elif [ "$RELEASE" = "true" ]; then
-            echo "::error::Faltan los secretos TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD: sin ellos, las actualizaciones automáticas no funcionarían."
+            echo "::error::Faltan los secretos TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD."
             exit 1
           else
-            echo "Sin clave del actualizador: se compila el instalador sin archivos de actualización."
-            npx tauri build
+            npx tauri build ${{ matrix.args }}
           fi
 
-      - name: Dejar el instalador con el nombre fijo
+      - name: Juntar los archivos con nombre fijo
         run: |
-          ls -la tauri/src-tauri/target/release/bundle/nsis/
-          f=$(ls tauri/src-tauri/target/release/bundle/nsis/*-setup.exe | head -n 1)
-          test -n "$f" || { echo "No se generó el instalador"; exit 1; }
+          b="tauri/src-tauri/${{ matrix.bundle }}"
           mkdir -p out
-          cp "$f" out/Trident-Client-Setup.exe
-          if [ -f "$f.sig" ]; then cp "$f.sig" out/Trident-Client-Setup.exe.sig; fi
+          copy() { if [ -f "$1" ]; then cp "$1" "out/$2"; fi; if [ -f "$1.sig" ]; then cp "$1.sig" "out/$2.sig"; fi; }
+          case "${{ matrix.name }}" in
+            windows)
+              copy "$(ls "$b"/nsis/*-setup.exe | head -n 1)" Trident-Client-Setup.exe ;;
+            macos)
+              copy "$(ls "$b"/dmg/*.dmg | head -n 1)" Trident-Client-macOS.dmg
+              copy "$(ls "$b"/macos/*.app.tar.gz | head -n 1)" Trident-Client-macOS.app.tar.gz ;;
+            linux)
+              copy "$(ls "$b"/appimage/*.AppImage | head -n 1)" Trident-Client-Linux.AppImage
+              copy "$(ls "$b"/deb/*.deb | head -n 1)" Trident-Client-Linux.deb ;;
+          esac
           ls -la out
+          test -n "$(ls out)" || { echo "No se generó nada"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trident-${{ matrix.name }}
+          path: out/
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
 
       - name: Archivos del actualizador (latest.json y latest.yml)
-        if: env.RELEASE == 'true'
         run: |
-          test -f out/Trident-Client-Setup.exe.sig || { echo "Falta la firma del instalador"; exit 1; }
+          ls -la out
           node - "${GITHUB_REF_NAME#v}" "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" <<'EOF'
           const fs = require('fs');
           const crypto = require('crypto');
           const [version, tag, repo] = process.argv.slice(2);
-          const exe = fs.readFileSync('out/Trident-Client-Setup.exe');
+          const url = (f) => `https://github.com/${repo}/releases/download/${tag}/${f}`;
+          const sig = (f) => fs.existsSync(`out/${f}.sig`) ? fs.readFileSync(`out/${f}.sig`, 'utf8').trim() : null;
+          const platforms = {};
+          const add = (keys, file) => {
+            const s = sig(file);
+            if (!s) return;
+            for (const k of keys) platforms[k] = { signature: s, url: url(file) };
+          };
+          add(['windows-x86_64'], 'Trident-Client-Setup.exe');
+          add(['darwin-aarch64', 'darwin-x86_64'], 'Trident-Client-macOS.app.tar.gz');
+          add(['linux-x86_64'], 'Trident-Client-Linux.AppImage');
+          if (!platforms['windows-x86_64']) { console.error('Falta la firma del instalador de Windows'); process.exit(1); }
           const now = new Date().toISOString();
-          // Actualizador de Tauri.
-          fs.writeFileSync('out/latest.json', JSON.stringify({
-            version,
-            notes: `Trident Client ${version}`,
-            pub_date: now,
-            platforms: {
-              'windows-x86_64': {
-                signature: fs.readFileSync('out/Trident-Client-Setup.exe.sig', 'utf8').trim(),
-                url: `https://github.com/${repo}/releases/download/${tag}/Trident-Client-Setup.exe`
-              }
-            }
-          }, null, 2) + '\n');
-          // electron-updater (versión Electron): baja este instalador, comprueba el sha512 y lo ejecuta con
-          // «--updated /S --force-run». El instalador de Tauri desinstala la versión Electron (Nova Client) y abre Trident Client.
+          fs.writeFileSync('out/latest.json', JSON.stringify({ version, notes: `Trident Client ${version}`, pub_date: now, platforms }, null, 2) + '\n');
+          const exe = fs.readFileSync('out/Trident-Client-Setup.exe');
           const sha512 = crypto.createHash('sha512').update(exe).digest('base64');
           fs.writeFileSync('out/latest.yml', [
             `version: ${version}`,
@@ -118,22 +163,14 @@ jobs:
             ''
           ].join('\n'));
           EOF
-          cat out/latest.json out/latest.yml
+          cat out/latest.json
 
       - name: Publicar el release
-        if: env.RELEASE == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-
-          gh release create "$GITHUB_REF_NAME" \
-            out/Trident-Client-Setup.exe out/Trident-Client-Setup.exe.sig out/latest.json out/latest.yml \
+          gh release create "$GITHUB_REF_NAME" out/* \
+            --repo "$GITHUB_REPOSITORY" \
             --title "Trident Client ${GITHUB_REF_NAME#v}" \
             --notes "Trident Client ${GITHUB_REF_NAME#v}" \
             --latest
-
-      - name: Subir instalador
-        uses: actions/upload-artifact@v4
-        with:
-          name: Trident-Client-Setup-Tauri
-          path: out/

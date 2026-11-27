@@ -8,6 +8,11 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.4.16', [
+    ['nuevo', 'Trident Client ahora también está para macOS (Apple Silicon e Intel) y Linux (AppImage y .deb).'],
+    ['nuevo', 'En Mac y Linux el launcher baja solo el Java que necesita cada versión, igual que en Windows.'],
+    ['cambio', 'Los datos de tu cuenta se guardan con permisos privados en Mac y Linux.']
+  ]],
   ['1.4.15', [
     ['arreglo', '«Abrir launcher» del menú de la bandeja vuelve a abrir el launcher.'],
     ['cambio', 'La X de la ventana ahora deja el launcher en la bandeja, junto al reloj. Para cerrarlo del todo, usá «Salir del launcher» en el menú del ícono.']

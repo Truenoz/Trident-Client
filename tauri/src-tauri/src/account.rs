@@ -278,7 +278,7 @@ pub fn save_refresh(user_dir: &Path, token: &str) {
         None => [b"P1:".as_slice(), token.as_bytes()].concat(),
     };
     let _ = std::fs::create_dir_all(user_dir);
-    if let Err(e) = std::fs::write(user_dir.join("account.bin"), blob) {
+    if let Err(e) = write_private(&user_dir.join("account.bin"), &blob) {
         eprintln!("No se pudo guardar la sesión: {e}");
     }
 }
@@ -311,6 +311,22 @@ pub fn load_offline(user_dir: &Path) -> Option<String> {
     let raw = std::fs::read_to_string(user_dir.join("offline.json")).ok()?;
     let v: Value = serde_json::from_str(&raw).ok()?;
     v["name"].as_str().map(|n| n.to_string())
+}
+
+pub fn write_private(path: &Path, data: &[u8]) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(path)?;
+        f.write_all(data)?;
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, data)
+    }
 }
 
 pub fn seal(data: &[u8]) -> Vec<u8> {

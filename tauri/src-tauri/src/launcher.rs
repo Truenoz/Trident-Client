@@ -19,7 +19,29 @@ pub struct Env<'a> {
     pub os_version: &'a str,
 }
 
+#[cfg(test)]
 pub const WINDOWS: Env<'static> = Env { os: "windows", arch: "x64", os_version: "10.0" };
+
+pub fn current() -> Env<'static> {
+    let os = if cfg!(target_os = "macos") {
+        "osx"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "windows"
+    };
+    let arch = match std::env::consts::ARCH {
+        "aarch64" => "arm64",
+        "x86" => "x86",
+        _ => "x64",
+    };
+    let os_version = match os {
+        "osx" => "14.0",
+        "linux" => "6.0",
+        _ => "10.0",
+    };
+    Env { os, arch, os_version }
+}
 
 fn rule_matches(rule: &Value, env: &Env, features: &HashSet<String>) -> bool {
     if let Some(os) = rule.get("os") {

@@ -1,5 +1,5 @@
 use crate::account::{self, Session};
-use crate::launcher::{self, WINDOWS};
+use crate::launcher;
 use crate::{content, discord, fabric, java, net, nova, profiles, settings, AppState};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -296,7 +296,7 @@ pub fn build_command(
         vars.insert(s("quickPlayMultiplayer"), s(q));
     }
 
-    let (json_jvm, mut game) = launcher::build_args(&prep.version, &WINDOWS, &features, &vars);
+    let (json_jvm, mut game) = launcher::build_args(&prep.version, &launcher::current(), &features, &vars);
 
     let mut args: Vec<String> = Vec::new();
     args.extend(memory_args(ram_gb));
@@ -407,7 +407,7 @@ async fn launch_inner(app: &AppHandle, profile_id: &str, opts: &Value) -> Result
     let (launch_id, with_nova) = prepare_profile(app, &profile, &inst, &game_dir).await?;
 
     status(app, "downloading", "Verificando archivos del juego…", None);
-    let prep = launcher::prepare(&game_dir, &launch_id, &WINDOWS, &progress_dl).await?;
+    let prep = launcher::prepare(&game_dir, &launch_id, &launcher::current(), &progress_dl).await?;
 
     log(app, format!("[Autenticación] Modo: {}", if session.offline { "OFFLINE (sin cuenta Microsoft)" } else { "MICROSOFT" }));
     log(app, format!("[Autenticación] Perfil: {}", session.name));
@@ -706,7 +706,7 @@ mod tests {
 
         let steps = std::sync::Mutex::new(Vec::<String>::new());
         let progress = |t: String, _p: Option<f64>| steps.lock().unwrap().push(t);
-        let prep = launcher::prepare(&root, "test-1", &WINDOWS, &progress).await.expect("prepare");
+        let prep = launcher::prepare(&root, "test-1", &launcher::WINDOWS, &progress).await.expect("prepare");
 
         assert!(root.join("libraries/x/lib/1/lib-1.jar").exists());
         assert!(!root.join("libraries/x/osx/1/osx-1.jar").exists(), "no debe bajar librerías de otro sistema");
@@ -717,7 +717,7 @@ mod tests {
         assert_eq!(prep.classpath.len(), 2, "lib normal + jar del cliente (los nativos no van al classpath)");
         assert!(steps.lock().unwrap().iter().any(|s| s.contains("librerías")));
 
-        let again = launcher::prepare(&root, "test-1", &WINDOWS, &progress).await.expect("prepare 2");
+        let again = launcher::prepare(&root, "test-1", &launcher::WINDOWS, &progress).await.expect("prepare 2");
         assert_eq!(again.classpath, prep.classpath);
 
         let session = account::offline_session("Tester_1").unwrap();

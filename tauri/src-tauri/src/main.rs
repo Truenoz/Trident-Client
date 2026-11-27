@@ -99,7 +99,7 @@ fn app_info(app: tauri::AppHandle, state: State<'_, AppState>) -> Res {
         "gameDir": state.game_dir.to_string_lossy(),
         "dataDir": state.user_dir.to_string_lossy(),
         "totalRamGB": total_gb,
-        "platform": "win32",
+        "platform": if cfg!(target_os = "macos") { "darwin" } else if cfg!(target_os = "linux") { "linux" } else { "win32" },
         "engine": format!("Tauri {}", tauri::VERSION),
         "novaVersions": nova_versions,
         "novaJar": !nova_versions.is_empty(),
@@ -797,7 +797,7 @@ fn win_maximize(window: tauri::WebviewWindow) {
 
 #[tauri::command]
 fn win_close(window: tauri::WebviewWindow) {
-    if window.label() == "main" && window.app_handle().tray_by_id("main").is_some() {
+    if window.label() == "main" && system::hides_to_tray(window.app_handle()) {
         let _ = window.hide();
     } else {
         let _ = window.close();
@@ -851,7 +851,7 @@ fn main() {
             let handle = app.handle().clone();
             let args: Vec<String> = std::env::args().collect();
             let hidden = system::start_hidden(&args, &current);
-            let custom_menu = system::create_tray_menu(&handle, system::session_browser_args(&current));
+            let custom_menu = cfg!(windows) && system::create_tray_menu(&handle, system::session_browser_args(&current));
             let tray_ok = match system::create_tray(&handle, custom_menu) {
                 Ok(()) => true,
                 Err(e) => {
@@ -881,7 +881,7 @@ fn main() {
             }
 
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" && window.app_handle().tray_by_id("main").is_some() {
+                if window.label() == "main" && system::hides_to_tray(window.app_handle()) {
                     api.prevent_close();
                     let _ = window.hide();
                     return;
@@ -971,6 +971,13 @@ fn main() {
             win_close,
             win_drag
         ])
-        .run(tauri::generate_context!())
-        .expect("No se pudo iniciar Trident Client");
+        .build(tauri::generate_context!())
+        .expect("No se pudo iniciar Trident Client")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                system::show_main_window(app);
+            }
+            let _ = (app, event);
+        });
 }

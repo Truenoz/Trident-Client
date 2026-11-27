@@ -30,10 +30,15 @@
   "bundle": {
     "active": true,
     "targets": [
-      "nsis"
+      "nsis",
+      "app",
+      "dmg",
+      "appimage",
+      "deb"
     ],
     "icon": [
       "icons/icon.ico",
+      "icons/icon.icns",
       "icons/icon.png"
     ],
     "copyright": "Copyright © Trident Client",
@@ -55,6 +60,18 @@
     "createUpdaterArtifacts": false,
     "resources": {
       "../ui/logo.png": "logo.png"
+    },
+    "category": "Game",
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ]
+      }
     }
   },
   "plugins": {
