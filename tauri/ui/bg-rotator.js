@@ -16,6 +16,7 @@
   }
 
   const layers = [a, b];
+  const walls = [document.getElementById('wall-a'), document.getElementById('wall-b')];
   let idx = 0;
   let front = 0;
   let timer = null;
@@ -29,7 +30,17 @@
     });
   }
 
-  function paint(layer, src) { layer.style.backgroundImage = 'url("' + src + '")'; }
+  function paint(layer, src) {
+    layer.style.backgroundImage = 'url("' + src + '")';
+    const w = walls[layers.indexOf(layer)];
+    if (w) w.style.backgroundImage = 'url("' + src + '")';
+  }
+
+  function show(layer, on) {
+    layer.classList.toggle('show', on);
+    const w = walls[layers.indexOf(layer)];
+    if (w) w.classList.toggle('show', on);
+  }
 
   async function next() {
     if (document.body.classList.contains('game-running')) return;
@@ -39,8 +50,8 @@
     if (!ok) return;
     const incoming = layers[1 - front];
     paint(incoming, files[idx]);
-    incoming.classList.add('show');
-    layers[front].classList.remove('show');
+    show(incoming, true);
+    show(layers[front], false);
     front = 1 - front;
   }
 
@@ -55,7 +66,7 @@
 
   preload(files[0]).then(() => {
     paint(a, files[0]);
-    a.classList.add('show');
+    show(a, true);
     schedule();
   });
 

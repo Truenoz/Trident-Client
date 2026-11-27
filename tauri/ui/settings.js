@@ -8,6 +8,13 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.4.14', [
+    ['cambio', 'Nuevo diseño Liquid Glass: paneles, botones y barra de secciones de vidrio transparente con reflejos y bordes brillantes, sobre un fondo que cambia con las imágenes del inicio.'],
+    ['cambio', 'Nueva letra Inter y botones redondeados.'],
+    ['cambio', 'Los botones de la ventana ahora son los círculos rojo, amarillo y verde.'],
+    ['cambio', 'Ajustes con el estilo de los ajustes de Mac: listas agrupadas, interruptores verdes y la sección elegida en color.'],
+    ['cambio', 'Animaciones más suaves, con el movimiento de resorte de Apple.']
+  ]],
   ['1.4.12', [
     ['cambio', 'Nueva barra de secciones de vidrio arriba: íconos redondos y la sección activa en blanco con su nombre.']
     ['nuevo', 'Animaciones: la burbuja blanca se desliza entre secciones, las pantallas y tarjetas aparecen con movimiento, el botón Jugar brilla y las ventanas se abren con rebote.']
