@@ -28,7 +28,7 @@
     </button>
   </div>
   <script>
-    const act = (action) => window.__TAURI__.core.invoke('tray_menu_action', { action }).catch(() => {});
+    const act = (action) => { window.location.href = 'https://menu.trident.invalid/' + action; };
     document.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => act(b.dataset.action)));
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') act('close'); });
     document.addEventListener('contextmenu', (e) => e.preventDefault());

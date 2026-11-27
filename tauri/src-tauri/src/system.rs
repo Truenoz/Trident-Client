@@ -127,8 +127,25 @@ pub const TRAY_MENU: &str = "traymenu";
 const TRAY_W: f64 = 196.0;
 const TRAY_H: f64 = 84.0;
 
+pub const MENU_HOST: &str = "menu.trident.invalid";
+
+pub fn menu_action_from_url(url: &tauri::Url) -> Option<String> {
+    if url.host_str() != Some(MENU_HOST) {
+        return None;
+    }
+    let action = url.path().trim_matches('/');
+    matches!(action, "open" | "quit" | "close").then(|| action.to_string())
+}
+
 pub fn create_tray_menu(app: &AppHandle, browser_args: &str) -> bool {
+    let handle = app.clone();
     tauri::WebviewWindowBuilder::new(app, TRAY_MENU, tauri::WebviewUrl::App("traymenu.html".into()))
+        .on_navigation(move |url| {
+            let Some(action) = menu_action_from_url(url) else { return true };
+            let h = handle.clone();
+            let _ = handle.run_on_main_thread(move || tray_action(&h, &action));
+            false
+        })
         .title("Trident Client")
         .inner_size(TRAY_W, TRAY_H)
         .decorations(false)
@@ -350,5 +367,19 @@ mod tests {
         assert!(fresh.contains("nuevo: después de rotar") && fresh.len() < 200, "{fresh}");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod tray_tests {
+    use super::*;
+
+    #[test]
+    fn menu_urls() {
+        let u = |s: &str| tauri::Url::parse(s).unwrap();
+        assert_eq!(menu_action_from_url(&u("https://menu.trident.invalid/open")).as_deref(), Some("open"));
+        assert_eq!(menu_action_from_url(&u("https://menu.trident.invalid/quit")).as_deref(), Some("quit"));
+        assert_eq!(menu_action_from_url(&u("https://menu.trident.invalid/rm")), None);
+        assert_eq!(menu_action_from_url(&u("tauri://localhost/traymenu.html")), None);
     }
 }

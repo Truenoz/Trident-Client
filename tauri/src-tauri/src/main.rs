@@ -797,7 +797,11 @@ fn win_maximize(window: tauri::WebviewWindow) {
 
 #[tauri::command]
 fn win_close(window: tauri::WebviewWindow) {
-    let _ = window.close();
+    if window.label() == "main" && window.app_handle().tray_by_id("main").is_some() {
+        let _ = window.hide();
+    } else {
+        let _ = window.close();
+    }
 }
 
 #[tauri::command]
@@ -874,6 +878,14 @@ fn main() {
                     let _ = window.hide();
                 }
                 return;
+            }
+
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" && window.app_handle().tray_by_id("main").is_some() {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    return;
+                }
             }
 
             if let tauri::WindowEvent::Resized(_) = event {
