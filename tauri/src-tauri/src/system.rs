@@ -113,9 +113,13 @@ fn set_login_item(_enabled: bool, _tray: bool) -> Result<(), String> {
 
 pub fn show_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
-        let _ = w.unminimize();
+        if w.is_minimized().unwrap_or(false) {
+            let _ = w.unminimize();
+        }
         let _ = w.show();
+        let _ = w.set_always_on_top(true);
         let _ = w.set_focus();
+        let _ = w.set_always_on_top(false);
     }
 }
 
@@ -167,13 +171,16 @@ fn show_tray_menu(app: &AppHandle, x: f64, y: f64) {
 }
 
 pub fn tray_action(app: &AppHandle, action: &str) {
-    if let Some(w) = app.get_webview_window(TRAY_MENU) {
-        let _ = w.hide();
-    }
     match action {
         "open" => show_main_window(app),
-        "quit" => app.exit(0),
+        "quit" => {
+            app.exit(0);
+            return;
+        }
         _ => {}
+    }
+    if let Some(w) = app.get_webview_window(TRAY_MENU) {
+        let _ = w.hide();
     }
 }
 

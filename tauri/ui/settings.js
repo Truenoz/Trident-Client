@@ -8,6 +8,9 @@ let updateTextEl = null;
 function setUpdateText(t) { if (updateTextEl) updateTextEl.textContent = t; }
 
 const CHANGELOG = [
+  ['1.4.15', [
+    ['arreglo', '«Abrir launcher» del menú de la bandeja vuelve a traer el launcher al frente, aunque esté minimizado o detrás de otras ventanas.']
+  ]],
   ['1.4.14', [
     ['cambio', 'Nuevo diseño Liquid Glass: paneles, botones y barra de secciones de vidrio transparente con reflejos y bordes brillantes, sobre un fondo que cambia con las imágenes del inicio.'],
     ['cambio', 'Nueva letra Inter y botones redondeados.'],

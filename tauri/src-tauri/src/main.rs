@@ -697,8 +697,9 @@ fn online_get() -> Res {
 }
 
 #[tauri::command]
-fn tray_menu_action(app: tauri::AppHandle, action: String) -> Res {
-    system::tray_action(&app, &action);
+async fn tray_menu_action(app: tauri::AppHandle, action: String) -> Res {
+    let handle = app.clone();
+    app.run_on_main_thread(move || system::tray_action(&handle, &action)).map_err(|e| e.to_string())?;
     Ok(Value::Null)
 }
 
